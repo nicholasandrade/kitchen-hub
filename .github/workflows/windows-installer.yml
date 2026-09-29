@@ -68,7 +68,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $asset = 'artifacts/KitchenHub-Setup-${{ steps.version.outputs.value }}.exe'
-          gh release view '${{ github.ref_name }}' 2>$null
+          cmd /c "gh release view ${{ github.ref_name }} >nul 2>&1"
           if ($LASTEXITCODE -eq 0) {
             gh release upload '${{ github.ref_name }}' $asset --clobber
           } else {

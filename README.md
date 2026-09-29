@@ -42,6 +42,7 @@ Open the local URL in Chrome or Edge. The application includes:
 
 - serving-size scaling
 - step-by-step cooking mode
+- persistent active-recipe sessions with a final-step completion flow
 - ingredient readiness checks
 - OpenAI speech-to-text with recipe vocabulary hints
 - schema-constrained command interpretation through the OpenAI Responses API

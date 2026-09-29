@@ -235,6 +235,7 @@ const createFixtureDraft = (prompt: string): RecipeDraft => {
 function App() {
   const [baseRecipe, setBaseRecipe] = useState<Recipe>(recipe)
   const [workingRecipe, setWorkingRecipe] = useState<Recipe>(() => cloneRecipe(recipe))
+  const [hasActiveRecipe, setHasActiveRecipe] = useState(() => localStorage.getItem('kitchen-hub:has-active-recipe') !== 'false')
   const [servings, setServings] = useState(recipe.baseServings)
   const [step, setStep] = useState(0)
   const [checked, setChecked] = useState<Set<number>>(new Set())
@@ -970,9 +971,22 @@ function App() {
     setChecked(new Set())
     setPending(null)
     setHasDraftChanges(false)
+    setHasActiveRecipe(true)
+    localStorage.setItem('kitchen-hub:has-active-recipe', 'true')
     setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: 'Ready for a voice command.' }])
     setLibraryOpen(false)
     setActiveView('cooking')
+  }
+
+  const finishRecipe = () => {
+    pauseHandsFree()
+    setHasActiveRecipe(false)
+    localStorage.setItem('kitchen-hub:has-active-recipe', 'false')
+    setChecked(new Set())
+    setStep(0)
+    stepRef.current = 0
+    setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: 'Ready for a voice command.' }])
+    setActiveView('home')
   }
 
   const chooseTheme = (nextTheme: ThemeId) => {
@@ -1152,7 +1166,7 @@ function App() {
             </div>
             <div className="recipe-grid">
               {libraryRecipes.map((item) => (
-                <button type="button" className={`recipe-tile ${item.id === baseRecipe.id ? 'active' : ''}`} key={item.id} onClick={() => openRecipe(item)}>
+                <button type="button" className={`recipe-tile ${hasActiveRecipe && item.id === baseRecipe.id ? 'active' : ''}`} key={item.id} onClick={() => openRecipe(item)}>
                   <span className="recipe-tile-number">{String(libraryRecipes.indexOf(item) + 1).padStart(2, '0')}</span>
                   <span className="recipe-tile-copy"><strong>{item.name}</strong><small>{item.description}</small></span>
                   <span className="recipe-tile-meta">{item.minutes} min · {item.baseServings} servings</span>
@@ -1171,12 +1185,16 @@ function App() {
             <p>Cook dinner, put something on, or fill the room with music.</p>
           </div>
           <div className="hub-layout">
-            <button className="hub-card cooking-app" type="button" onClick={() => setActiveView('cooking')}>
+            <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
               <span className="hub-card-icon" aria-hidden="true">
                 <svg viewBox="0 0 48 48"><path d="M10 24h28v5a12 12 0 0 1-12 12h-4A12 12 0 0 1 10 29v-5Z"/><path d="M7 24h34M18 18c-3-4 3-5 0-9M27 18c-3-4 3-5 0-9"/></svg>
               </span>
-              <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {workingRecipe.minutes} minutes</small></span>
-              <span className="hub-card-action">Open cooking <b aria-hidden="true">→</b></span>
+              {hasActiveRecipe ? (
+                <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {workingRecipe.minutes} minutes</small></span>
+              ) : (
+                <span className="hub-card-copy"><span className="hub-card-kicker">Ready when you are</span><strong>Choose your next recipe</strong><small>Browse saved recipes or start with an idea from Recipe Lab.</small></span>
+              )}
+              <span className="hub-card-action">{hasActiveRecipe ? 'Open cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
             </button>
             <section className="hub-media" aria-labelledby="media-title">
               <div className="hub-media-heading"><p className="eyebrow">Quick access</p><h2 id="media-title">Around the kitchen</h2></div>
@@ -1355,7 +1373,9 @@ function App() {
             ) : <span />}
             {step < workingRecipe.steps.length - 1 ? (
               <button className="primary" type="button" onClick={() => goToStep(step + 1)}>Next step →</button>
-            ) : null}
+            ) : (
+              <button className="primary finish-recipe" type="button" onClick={finishRecipe}>Finish recipe ✓</button>
+            )}
           </div>
         </section>
         <section className={`conversation-card voice-${voicePhase} ${alwaysListening ? 'is-listening' : ''} ${pendingEdit ? 'needs-answer' : ''}`} aria-label="Voice conversation">

@@ -41,6 +41,8 @@ button { font: inherit; }
 .hub-card-copy small { color: color-mix(in srgb, #fff 68%, var(--graphite)); font-size: 17px; line-height: 1.5; }
 .hub-card-action { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 750; }
 .hub-card-action b { color: var(--teal); font-size: 22px; }
+.hub-card.is-empty::after { width: 54%; background: color-mix(in srgb, var(--teal) 10%, transparent); }
+.hub-card.is-empty .hub-card-icon { color: var(--teal); background: color-mix(in srgb, var(--teal) 12%, var(--graphite)); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--teal) 45%,transparent); }
 .hub-media { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: clamp(24px,3vw,42px) 0; }
 .hub-media-heading { margin-bottom: 34px; }
 .hub-media-heading h2 { font-size: clamp(30px,3vw,43px); }

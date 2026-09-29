@@ -12,6 +12,7 @@ type PendingEdit =
   | { kind: 'addition-details'; name: string; stepIndex?: number; amount?: number; unit?: string; note?: string }
 type VoiceMessage = { id: number; role: 'user' | 'assistant'; text: string }
 type VoicePhase = 'off' | 'ready' | 'hearing' | 'processing' | 'error'
+const READY_VOICE_MESSAGE = 'Ready for a voice command.'
 type VoiceCommand = {
   action: 'next_step' | 'previous_step' | 'go_to_step' | 'start_over' |
     'set_servings' | 'adjust_servings' | 'ingredient_quantity' |
@@ -245,7 +246,7 @@ function App() {
   const [, setTranscript] = useState('Tap the microphone, then speak naturally.')
   const [, setNotice] = useState('Ready when you are')
   const [voiceMessages, setVoiceMessages] = useState<VoiceMessage[]>([
-    { id: 0, role: 'assistant', text: 'Ready for a voice command.' },
+    { id: 0, role: 'assistant', text: READY_VOICE_MESSAGE },
   ])
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null)
   const [hasDraftChanges, setHasDraftChanges] = useState(false)
@@ -299,6 +300,10 @@ function App() {
 
   const scale = servings / workingRecipe.baseServings
   const progress = ((step + 1) / workingRecipe.steps.length) * 100
+  const currentVoiceMessage = voiceMessages[voiceMessages.length - 1]
+  const voicePanelNeedsRoom = Boolean(pendingEdit)
+    || voicePhase === 'error'
+    || (currentVoiceMessage?.text !== READY_VOICE_MESSAGE && currentVoiceMessage?.text.length > 72)
   const scaledIngredients = useMemo(
     () => workingRecipe.ingredients.map((item) => ({ ...item, amount: item.amount * scale })),
     [scale, workingRecipe.ingredients],
@@ -347,6 +352,10 @@ function App() {
   useEffect(() => {
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: 'smooth' })
   }, [voiceMessages])
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [activeView])
 
   const addVoiceMessage = (role: VoiceMessage['role'], text: string) => {
     setVoiceMessages([{ id: voiceMessageIdRef.current++, role, text }])
@@ -986,7 +995,7 @@ function App() {
     setHasDraftChanges(false)
     setHasActiveRecipe(true)
     localStorage.setItem('kitchen-hub:has-active-recipe', 'true')
-    setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: 'Ready for a voice command.' }])
+    setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: READY_VOICE_MESSAGE }])
     setLibraryOpen(false)
     setActiveView('cooking')
   }
@@ -998,7 +1007,7 @@ function App() {
     setChecked(new Set())
     setStep(0)
     stepRef.current = 0
-    setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: 'Ready for a voice command.' }])
+    setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: READY_VOICE_MESSAGE }])
     setActiveView('home')
   }
 
@@ -1432,7 +1441,7 @@ function App() {
             )}
           </div>
         </section>
-        <section className={`conversation-card voice-${voicePhase} ${alwaysListening ? 'is-listening' : ''} ${pendingEdit ? 'needs-answer' : ''}`} aria-label="Voice conversation">
+        <section className={`conversation-card voice-${voicePhase} ${alwaysListening ? 'is-listening' : ''} ${pendingEdit ? 'needs-answer' : ''} ${voicePanelNeedsRoom ? 'has-expanded-content' : ''}`} aria-label="Voice conversation">
           <div className="conversation-log" ref={conversationRef} aria-live="polite">
             {voiceMessages.map((message) => (
               <div className={`voice-message ${message.role}`} key={message.id} aria-label={message.role === 'user' ? 'You said' : 'Kitchen Hub response'}>

@@ -46,7 +46,7 @@ On Windows with Node, Python 3.11, and Inno Setup 6 installed:
 npm run build:windows
 ```
 
-The result is `artifacts\KitchenHub-Setup-0.1.0.exe`. The build verifies the official portable Node download, compiles the frontend, packages the wake listener with PyInstaller, stages the wake model, and compiles the installer.
+The result is `artifacts\KitchenHub-Setup-x.y.z.exe`, using the version from `package.json`. The build verifies the official portable Node download, compiles the frontend, packages the wake listener with PyInstaller, stages the wake model, and compiles the installer.
 
 Tagged GitHub builds are automated. Push a version tag such as `v0.1.0`; the workflow builds the installer and attaches it to a GitHub Release. See [packaging/README.md](./packaging/README.md).
 

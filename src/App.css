@@ -86,10 +86,10 @@ h1 { margin: 0; font-family: Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif;
 .recipe-facts div { display: flex; flex-direction: column; gap: 2px; }
 .recipe-facts span { color: #857e72; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
 .recipe-facts strong { font-size: 16px; }
-.workspace { display: grid; grid-template-columns: minmax(450px,7fr) minmax(560px,10fr); gap: 18px; max-width: 1560px; margin: 0 auto; }
+.workspace { --cook-height: clamp(590px,calc(100dvh - 225px),840px); display: grid; grid-template-columns: minmax(450px,7fr) minmax(560px,10fr); align-items: stretch; gap: 18px; max-width: 1560px; margin: 0 auto; }
 .ingredients-card, .step-card, .conversation-card { border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 8px 26px rgba(38,48,50,.06); }
-.ingredients-card { display: flex; flex-direction: column; height: clamp(590px,66vh,760px); overflow: hidden; padding: 24px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
-.cooking-column { display: flex; flex-direction: column; gap: 18px; height: clamp(590px,66vh,760px); min-width: 0; }
+.ingredients-card { display: flex; flex-direction: column; height: var(--cook-height); overflow: hidden; padding: 24px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+.cooking-column { display: flex; flex-direction: column; gap: 14px; height: var(--cook-height); min-width: 0; }
 .step-card { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; padding: 25px; color: #f6f8f7; background: var(--graphite); }
 .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif; letter-spacing: -.025em; }
@@ -123,9 +123,11 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .step-actions button:disabled { cursor: default; opacity: .35; }
 .secondary { border: 1px solid rgba(255,255,255,.19); color: #e8e9e2; background: transparent; }
 .primary { border: 1px solid var(--teal); color: #f8fbfa; background: var(--teal); }
-.conversation-card { display: grid; flex: 0 0 250px; grid-template-columns: minmax(0,1fr) 30%; gap: 18px; min-height: 0; overflow: hidden; padding: 18px; color: #2f3435; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+.conversation-card { display: grid; flex: 0 0 144px; grid-template-columns: minmax(0,1fr) 118px; gap: 12px; min-height: 0; overflow: hidden; padding: 12px; color: #2f3435; background: color-mix(in srgb, var(--panel) 92%, transparent); transition: flex-basis .22s ease; }
+.conversation-card.has-expanded-content { flex-basis: clamp(190px,24dvh,250px); }
 .voice-control { position: relative; display: grid; place-items: center; min-width: 0; }
-.mic-button { display: grid; place-items: center; width: min(100%,190px); aspect-ratio: 1; border: 2px solid color-mix(in srgb, var(--teal) 58%, transparent); border-radius: 16px; color: color-mix(in srgb, var(--teal) 78%, white); background: var(--graphite); box-shadow: 0 8px 20px rgba(39,44,46,.14); cursor: pointer; }
+.mic-button { display: grid; place-items: center; width: min(100%,112px); aspect-ratio: 1; border: 2px solid color-mix(in srgb, var(--teal) 58%, transparent); border-radius: 16px; color: color-mix(in srgb, var(--teal) 78%, white); background: var(--graphite); box-shadow: 0 8px 20px rgba(39,44,46,.14); cursor: pointer; }
+.conversation-card.has-expanded-content .mic-button { width: min(100%,170px); }
 .mic-button svg { width: 46%; height: 46%; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3.2; }
 .mic-meter { position: absolute; right: 4px; bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px; width: 46px; height: 40px; border-radius: 10px; background: var(--graphite); z-index: 1; }
 .mic-meter i { display: block; width: 4px; min-height: 5px; border-radius: 99px; background: var(--teal); transition: height .1s ease; }
@@ -134,7 +136,7 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .conversation-card.is-listening .mic-button { animation: pulse 1.3s infinite; }
 .conversation-card.voice-processing .mic-button { animation: voice-processing .8s ease-in-out infinite alternate; }
 .conversation-card.voice-error .mic-button { border-color: #b94e3f; }
-.conversation-log { display: flex; flex-direction: column; justify-content: center; min-height: 0; padding: 24px 28px; overflow-y: auto; border: 1px solid var(--line); border-left: 5px solid var(--teal); border-radius: 12px; background: var(--panel-muted); box-shadow: inset 0 1px 3px rgba(38,48,50,.04); scrollbar-color: var(--teal) transparent; scrollbar-width: thin; }
+.conversation-log { display: flex; flex-direction: column; justify-content: center; min-height: 0; padding: 16px 22px; overflow-y: auto; border: 1px solid var(--line); border-left: 5px solid var(--teal); border-radius: 12px; background: var(--panel-muted); box-shadow: inset 0 1px 3px rgba(38,48,50,.04); scrollbar-color: var(--teal) transparent; scrollbar-width: thin; }
 .voice-message { max-width: 100%; }
 .voice-message p { margin: 0; color: #30322e; font-size: clamp(23px,1.7vw,30px); font-weight: 680; line-height: 1.3; letter-spacing: -.018em; }
 .library-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 28px; background: rgba(31,38,40,.56); backdrop-filter: blur(8px); animation: library-backdrop-in .2s ease-out both; z-index: 20; }
@@ -348,6 +350,23 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 @media (max-width: 1050px) {
   .hub-layout { grid-template-columns: 1fr; gap: 32px; } .hub-card { min-height: 360px; } .hub-media { padding: 10px 0; } .lab-workspace { grid-template-columns: 1fr; } .lab-conversation, .lab-draft { min-height: 570px; } .timer-controls { align-items: stretch; flex-direction: column; } .timer-actions button { flex: 1; } .recipe-heading { align-items: start; flex-direction: column; } .workspace { grid-template-columns: 1fr; } .ingredients-card { height: 620px; } .cooking-column { height: 760px; }
   .recipe-grid, .theme-grid { grid-template-columns: 1fr; } .recipe-tile, .theme-option { min-height: 210px; }
+}
+@media (min-width: 850px) and (max-height: 950px) {
+  .app-shell { padding-top: 16px; padding-bottom: 18px; }
+  .topbar { padding-bottom: 14px; }
+  .brand-mark { width: 38px; height: 38px; }
+  .recipe-heading { margin-top: 18px; margin-bottom: 16px; }
+  .recipe-heading h1 { font-size: clamp(36px,3.8vw,52px); }
+  .description { margin-top: 9px; }
+  .recipe-facts { gap: 22px; padding: 12px 16px; }
+  .workspace { --cook-height: clamp(540px,calc(100dvh - 231px),760px); gap: 14px; }
+  .ingredients-card, .cooking-column { height: var(--cook-height); }
+  .ingredients-card { padding: 20px; }
+  .cooking-column { gap: 12px; }
+  .card-heading { margin-bottom: 14px; }
+  .step-card { padding: 20px; }
+  .step-body { gap: clamp(24px,4vw,48px); padding: 18px clamp(8px,3vw,36px); }
+  .step-actions button { padding: 12px 18px; }
 }
 @media (max-width: 560px) {
   .app-shell { padding: 16px 12px 24px; } .hub-home, .recipe-lab, .timer-view { padding: 42px 4px 90px; } .hub-intro { margin-bottom: 34px; } .hub-card { min-height: 390px; padding: 30px 24px; border-radius: 18px; } .hub-card-copy strong { font-size: 42px; } .media-destination { min-height: 104px; padding: 20px 8px; } .lab-heading { align-items: flex-start; flex-direction: column; } .lab-heading h1 { font-size: 48px; } .prototype-badge { margin: 0; } .lab-workspace { gap: 16px; } .lab-conversation, .lab-draft { min-height: 540px; padding: 26px 20px; border-radius: 18px; } .lab-response { min-height: 300px; } .lab-answer { grid-template-columns: 42px minmax(0,1fr); gap: 15px; } .lab-answer-mark { width: 42px; height: 42px; } .lab-answer p { font-size: 25px; } .lab-composer > div { grid-template-columns: minmax(0,1fr) 54px; } .lab-composer button { width: 54px; height: 54px; } .lab-draft-heading { flex-direction: column; } .lab-draft-heading h2 { font-size: 37px; } .lab-draft-actions { display: grid; grid-template-columns: 1fr; } .lab-draft-actions button { min-height: 54px; } .timer-stage { min-height: 280px; border-radius: 18px; } .timer-display { font-size: 92px; } .timer-presets { display: grid; grid-template-columns: repeat(2,1fr); } .timer-presets button { min-height: 58px; } .timer-actions { display: grid; grid-template-columns: 1fr 1fr; } .settings-button { left: 14px; bottom: 14px; } .recipe-facts { width: 100%; justify-content: space-between; }

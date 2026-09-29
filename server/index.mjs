@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -57,6 +57,30 @@ const commandSchema = {
 const sendJson = (response, status, value) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
   response.end(JSON.stringify(value))
+}
+
+const saveOpenAIKey = async (request, response) => {
+  const body = JSON.parse((await readBody(request, 16 * 1024)).toString('utf8') || '{}')
+  const apiKey = String(body.apiKey || '').trim()
+  if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(apiKey)) {
+    return sendJson(response, 400, { error: 'Enter a valid OpenAI API key.' })
+  }
+
+  const validation = await fetch('https://api.openai.com/v1/models', {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  if (!validation.ok) {
+    const payload = await validation.json().catch(() => ({}))
+    return sendJson(response, 400, { error: payload?.error?.message || 'OpenAI rejected this API key.' })
+  }
+
+  const existing = existsSync(envPath) ? await readFile(envPath, 'utf8') : await readFile(join(root, '.env.example'), 'utf8')
+  const nextLine = `OPENAI_API_KEY=${apiKey}`
+  const next = /^\s*OPENAI_API_KEY=.*$/m.test(existing)
+    ? existing.replace(/^\s*OPENAI_API_KEY=.*$/m, nextLine)
+    : `${existing.trimEnd()}\n${nextLine}\n`
+  await writeFile(envPath, next, { encoding: 'utf8', mode: 0o600 })
+  return sendJson(response, 200, { configured: true })
 }
 
 const openWakeEvents = (request, response) => {
@@ -189,6 +213,7 @@ const server = createServer(async (request, response) => {
       const { configured, transcriptionModel, commandModel } = getConfig()
       return sendJson(response, 200, { configured, transcriptionModel, commandModel })
     }
+    if (request.method === 'PUT' && request.url === '/api/settings/openai-key') return await saveOpenAIKey(request, response)
     if (request.method === 'GET' && request.url === '/api/wake/events') return openWakeEvents(request, response)
     if (request.method === 'POST' && request.url === '/api/wake') return await publishWakeEvent(request, response)
     if (request.method === 'POST' && request.url?.startsWith('/api/voice/transcribe')) return await transcribe(request, response)

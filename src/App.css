@@ -162,6 +162,21 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .settings-row-copy small { color: #697276; font-size: 14px; }
 .settings-row-value { display: flex; align-items: center; gap: 14px; color: var(--steel); font-size: 13px; font-weight: 650; }
 .settings-row-value b { color: var(--teal); font-size: 28px; line-height: 1; }
+.connection-settings { display: flex; flex-direction: column; gap: 22px; }
+.connection-status { display: grid; grid-template-columns: 14px minmax(0,1fr); gap: 15px; padding: 20px; border-radius: 15px; background: var(--panel); }
+.connection-status > span { width: 12px; height: 12px; margin-top: 5px; border-radius: 50%; background: var(--steel); }
+.connection-status.connected > span { background: var(--teal-dark); box-shadow: 0 0 0 5px color-mix(in srgb,var(--teal) 20%,transparent); }
+.connection-status.error > span { background: #b64f3d; }
+.connection-status.saving > span, .connection-status.loading > span { background: var(--teal); animation: pulse 1.3s ease-in-out infinite; }
+.connection-status strong { display: block; color: var(--graphite); font-size: 20px; }
+.connection-status p { margin: 6px 0 0; color: var(--steel); font-size: 14px; line-height: 1.5; }
+.connection-form { display: flex; flex-direction: column; gap: 10px; }
+.connection-form label { color: var(--graphite); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.connection-form input { min-height: 56px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--graphite); background: var(--panel); font: 650 17px/1 Inter,'Segoe UI',sans-serif; }
+.connection-form input:focus { border-color: var(--teal); box-shadow: 0 0 0 4px color-mix(in srgb,var(--teal) 17%,transparent); }
+.connection-form small { color: var(--steel); font-size: 13px; line-height: 1.45; }
+.connection-form button { align-self: flex-start; min-height: 50px; margin-top: 8px; padding: 0 20px; border: 0; border-radius: 11px; color: var(--graphite); background: var(--teal); cursor: pointer; font-weight: 850; }
+.connection-form button:disabled { opacity: .45; cursor: default; }
 .theme-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
 .theme-option { position: relative; display: flex; min-height: 250px; flex-direction: column; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; color: #293032; background: var(--panel); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
 .theme-option:hover { transform: translateY(-3px); border-color: var(--teal); }
@@ -284,6 +299,9 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .lab-draft-summary strong { color: #effcff; }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .theme-option, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .recipe-tile, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .library-close, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .settings-back, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .settings-row { color: #effcff; background: var(--panel); }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .settings-row-copy small, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .theme-copy small, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .recipe-tile-copy small, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .recipe-tile-meta { color: #b7c9d2; }
+.app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-status, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form input { color: #effcff; background: var(--panel); }
+.app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-status strong, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form label { color: #effcff; }
+.app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-status p, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form small { color: #b7c9d2; }
 .app-shell[data-theme='cyberpunk'] .theme-copy small, .app-shell[data-theme='cyberpunk'] .recipe-tile-copy small, .app-shell[data-theme='cyberpunk'] .recipe-tile-meta { color: #aabdc7; }
 .app-shell[data-theme='cyberpunk'] .ingredients-card, .app-shell[data-theme='cyberpunk'] .step-card, .app-shell[data-theme='cyberpunk'] .conversation-card, .app-shell[data-theme='cyberpunk'] .settings-panel, .app-shell[data-theme='cyberpunk'] .recipe-library, .app-shell[data-theme='cyberpunk'] .theme-option { border-radius: 4px; }
 .app-shell[data-theme='cyberpunk'] h1 { font-family: Bahnschrift, 'Arial Narrow', Inter, sans-serif; font-weight: 760; letter-spacing: .015em; text-transform: uppercase; text-shadow: 2px 2px 0 rgba(255,66,206,.34); }

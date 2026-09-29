@@ -6,7 +6,7 @@ For a fresh Surface Pro installation, power configuration, kiosk mode, and autom
 
 ## Run locally
 
-1. Copy `.env.example` to `.env` and set `OPENAI_API_KEY`. Keep this server-side file private.
+1. Copy `.env.example` to `.env`. Start the app, then add the OpenAI API key under **Settings → Connections**. The local server writes it to the private `.env` file.
 2. Install the local wake-phrase model once:
 
    ```bash
@@ -45,6 +45,7 @@ Open the local URL in Chrome or Edge. The application includes:
 - ingredient readiness checks
 - OpenAI speech-to-text with recipe vocabulary hints
 - schema-constrained command interpretation through the OpenAI Responses API
+- in-app OpenAI credential setup with local-only storage and server-side validation
 - client-side execution of an explicit command allowlist
 - local sherpa-onnx wake-phrase detection for `Kitchen Hub`
 - voice activity detection that records one command at a time after the wake phrase

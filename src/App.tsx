@@ -261,7 +261,10 @@ function App() {
   const [timerRemaining, setTimerRemaining] = useState(10 * 60)
   const [timerRunning, setTimerRunning] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsPage, setSettingsPage] = useState<'root' | 'appearance'>('root')
+  const [settingsPage, setSettingsPage] = useState<'root' | 'appearance' | 'connections'>('root')
+  const [openAIKey, setOpenAIKey] = useState('')
+  const [openAIStatus, setOpenAIStatus] = useState<'loading' | 'connected' | 'empty' | 'saving' | 'error'>('loading')
+  const [openAIMessage, setOpenAIMessage] = useState('')
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('kitchen-hub:theme')
     return themeOptions.some((option) => option.id === saved) ? saved as ThemeId : 'architectural'
@@ -979,7 +982,47 @@ function App() {
 
   const openSettings = () => {
     setSettingsPage('root')
+    setOpenAIStatus('loading')
+    setOpenAIMessage('')
     setSettingsOpen(true)
+  }
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    let cancelled = false
+    fetch('/api/voice/health')
+      .then(async (response) => {
+        const health = await response.json()
+        if (!response.ok) throw new Error(health.error || 'Could not reach the local voice service.')
+        if (!cancelled) setOpenAIStatus(health.configured ? 'connected' : 'empty')
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setOpenAIStatus('error')
+          setOpenAIMessage(error instanceof Error ? error.message : 'Could not reach the local voice service.')
+        }
+      })
+    return () => { cancelled = true }
+  }, [settingsOpen])
+
+  const saveOpenAIKey = async () => {
+    setOpenAIStatus('saving')
+    setOpenAIMessage('')
+    try {
+      const response = await fetch('/api/settings/openai-key', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: openAIKey }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'The API key could not be saved.')
+      setOpenAIKey('')
+      setOpenAIStatus('connected')
+      setOpenAIMessage('OpenAI is connected and ready for voice commands.')
+    } catch (error) {
+      setOpenAIStatus('error')
+      setOpenAIMessage(error instanceof Error ? error.message : 'The API key could not be saved.')
+    }
   }
 
   const chooseTimer = (minutes: number) => {
@@ -1051,8 +1094,8 @@ function App() {
           <section className={`settings-panel ${settingsPage === 'appearance' ? 'appearance-open' : ''}`} role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
             <div className="library-heading">
               <div className="settings-heading-copy">
-                {settingsPage === 'appearance' ? <button type="button" className="settings-back" onClick={() => setSettingsPage('root')} aria-label="Back to settings">←</button> : null}
-                <div><p className="eyebrow">{settingsPage === 'appearance' ? 'Settings' : 'Kitchen Hub'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : 'Settings'}</h2></div>
+                {settingsPage !== 'root' ? <button type="button" className="settings-back" onClick={() => setSettingsPage('root')} aria-label="Back to settings">←</button> : null}
+                <div><p className="eyebrow">{settingsPage === 'root' ? 'Kitchen Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
               </div>
               <button type="button" className="library-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button>
             </div>
@@ -1063,8 +1106,13 @@ function App() {
                   <span className="settings-row-copy"><strong>Appearance</strong><small>Theme, color, and visual style</small></span>
                   <span className="settings-row-value">{themeOptions.find((option) => option.id === theme)?.name}<b aria-hidden="true">›</b></span>
                 </button>
+                <button type="button" className="settings-row" onClick={() => setSettingsPage('connections')}>
+                  <span className="settings-row-icon" aria-hidden="true">⌁</span>
+                  <span className="settings-row-copy"><strong>Connections</strong><small>OpenAI voice and command service</small></span>
+                  <span className="settings-row-value">{openAIStatus === 'connected' ? 'Connected' : openAIStatus === 'loading' ? 'Checking…' : 'Setup required'}<b aria-hidden="true">›</b></span>
+                </button>
               </div>
-            ) : (
+            ) : settingsPage === 'appearance' ? (
               <div className="theme-grid">
                 {themeOptions.map((option) => (
                   <button type="button" className={`theme-option ${option.id === theme ? 'active' : ''}`} aria-pressed={option.id === theme} key={option.id} onClick={() => chooseTheme(option.id)}>
@@ -1073,6 +1121,22 @@ function App() {
                     <span className="theme-check" aria-hidden="true">{option.id === theme ? '✓' : ''}</span>
                   </button>
                 ))}
+              </div>
+            ) : (
+              <div className="connection-settings">
+                <div className={`connection-status ${openAIStatus}`}>
+                  <span aria-hidden="true" />
+                  <div>
+                    <strong>{openAIStatus === 'loading' ? 'Checking connection' : openAIStatus === 'connected' ? 'OpenAI connected' : openAIStatus === 'saving' ? 'Verifying key' : openAIStatus === 'error' ? 'Connection needs attention' : 'OpenAI setup required'}</strong>
+                    <p>{openAIStatus === 'connected' ? 'Voice transcription and command understanding are ready.' : openAIStatus === 'loading' ? 'Contacting the local Kitchen Hub service…' : openAIStatus === 'saving' ? 'The local service is securely checking this key with OpenAI…' : openAIMessage || 'Add an API key to enable production voice control.'}</p>
+                  </div>
+                </div>
+                <form className="connection-form" onSubmit={(event) => { event.preventDefault(); void saveOpenAIKey() }}>
+                  <label htmlFor="openai-api-key">OpenAI API key</label>
+                  <input id="openai-api-key" type="password" value={openAIKey} onChange={(event) => setOpenAIKey(event.target.value)} placeholder={openAIStatus === 'connected' ? 'Enter a new key to replace the current one' : 'sk-…'} autoComplete="off" spellCheck={false} />
+                  <small>The key is saved only in this Hub’s local, Git-ignored <code>.env</code> file. It is never stored in the browser.</small>
+                  <button type="submit" disabled={!openAIKey.trim() || openAIStatus === 'saving'}>{openAIStatus === 'saving' ? 'Verifying…' : openAIStatus === 'connected' ? 'Replace key' : 'Connect OpenAI'}</button>
+                </form>
               </div>
             )}
           </section>

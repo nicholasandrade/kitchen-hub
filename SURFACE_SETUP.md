@@ -38,13 +38,7 @@ cd kitchen-hub
 powershell -ExecutionPolicy Bypass -File .\scripts\Install-KitchenHub.ps1
 ```
 
-Open `.env` in Notepad or VS Code and replace the placeholder with your OpenAI API key:
-
-```text
-OPENAI_API_KEY=your_key_here
-```
-
-Never paste the key into GitHub or commit `.env`. The project ignores this file automatically.
+The installer creates the private `.env` file. Leave it in place; the app will configure it during the first launch. Never upload or commit `.env`. The project ignores this file automatically.
 
 ## 4. Keep it awake while plugged in
 
@@ -69,6 +63,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Start-KitchenHub.ps1
 Edge opens full-screen after the local voice and wake services are ready. Open a recipe, tap the microphone once, then say:
 
 > Kitchen Hub, next step.
+
+On the first launch, select the gear in the lower-left corner, open **Connections**, enter the OpenAI API key, and choose **Connect OpenAI**. Kitchen Hub validates the key directly with OpenAI and stores it only in the tablet’s local `.env` file. The interface never displays the saved key again.
 
 Also test from the intended wall or counter location with normal kitchen noise playing.
 

@@ -1,7 +1,7 @@
 {
   "name": "kitchen-hub",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "wake-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File wake\\setup.ps1",
     "start": "node server/index.mjs",
     "build": "tsc -b && vite build",
+    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging\\build-windows.ps1",
     "lint": "oxlint",
     "preview": "vite preview"
   },

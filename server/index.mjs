@@ -1,12 +1,13 @@
 import { createServer } from 'node:http'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const dist = join(root, 'dist')
-const envPath = join(root, '.env')
+const dataDirectory = process.env.KITCHEN_HUB_DATA_DIR || root
+const envPath = join(dataDirectory, '.env')
 const readLocalEnv = () => {
   const values = {}
   if (!existsSync(envPath)) return values
@@ -22,12 +23,14 @@ const getConfig = () => {
   const apiKey = process.env.OPENAI_API_KEY || local.OPENAI_API_KEY || ''
   return {
     apiKey,
-    configured: Boolean(apiKey && !apiKey.includes('paste_your_openai_api_key_here')),
+    configured: /^sk-[A-Za-z0-9_-]{20,}$/.test(apiKey),
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || local.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     commandModel: process.env.OPENAI_COMMAND_MODEL || local.OPENAI_COMMAND_MODEL || 'gpt-5-mini',
+    wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Kitchen Hub',
   }
 }
 const port = Number(process.env.VOICE_SERVER_PORT || readLocalEnv().VOICE_SERVER_PORT || 8787)
+const wakeListenerUrl = process.env.KITCHEN_HUB_WAKE_LISTENER_URL || 'http://127.0.0.1:8788'
 const wakeClients = new Set()
 
 const allowedActions = [
@@ -59,6 +62,17 @@ const sendJson = (response, status, value) => {
   response.end(JSON.stringify(value))
 }
 
+const saveLocalEnvValue = async (name, value) => {
+  await mkdir(dataDirectory, { recursive: true })
+  const existing = existsSync(envPath) ? await readFile(envPath, 'utf8') : await readFile(join(root, '.env.example'), 'utf8')
+  const nextLine = `${name}=${value}`
+  const pattern = new RegExp(`^\\s*${name}=.*$`, 'm')
+  const next = pattern.test(existing)
+    ? existing.replace(pattern, nextLine)
+    : `${existing.trimEnd()}\n${nextLine}\n`
+  await writeFile(envPath, next, { encoding: 'utf8', mode: 0o600 })
+}
+
 const saveOpenAIKey = async (request, response) => {
   const body = JSON.parse((await readBody(request, 16 * 1024)).toString('utf8') || '{}')
   const apiKey = String(body.apiKey || '').trim()
@@ -74,13 +88,32 @@ const saveOpenAIKey = async (request, response) => {
     return sendJson(response, 400, { error: payload?.error?.message || 'OpenAI rejected this API key.' })
   }
 
-  const existing = existsSync(envPath) ? await readFile(envPath, 'utf8') : await readFile(join(root, '.env.example'), 'utf8')
-  const nextLine = `OPENAI_API_KEY=${apiKey}`
-  const next = /^\s*OPENAI_API_KEY=.*$/m.test(existing)
-    ? existing.replace(/^\s*OPENAI_API_KEY=.*$/m, nextLine)
-    : `${existing.trimEnd()}\n${nextLine}\n`
-  await writeFile(envPath, next, { encoding: 'utf8', mode: 0o600 })
+  await saveLocalEnvValue('OPENAI_API_KEY', apiKey)
   return sendJson(response, 200, { configured: true })
+}
+
+const saveWakePhrase = async (request, response) => {
+  const body = JSON.parse((await readBody(request, 16 * 1024)).toString('utf8') || '{}')
+  const phrase = String(body.phrase || '').trim().replace(/\s+/g, ' ')
+  if (!/^[A-Za-z0-9][A-Za-z0-9 '-]{1,31}$/.test(phrase)) {
+    return sendJson(response, 400, { error: 'Use 2–32 letters, numbers, spaces, apostrophes, or hyphens.' })
+  }
+
+  let listenerResponse
+  try {
+    listenerResponse = await fetch(`${wakeListenerUrl}/keyword`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phrase }),
+    })
+  } catch {
+    return sendJson(response, 503, { error: 'The local wake listener is not running. Start it and try again.' })
+  }
+  const listenerResult = await listenerResponse.json().catch(() => ({}))
+  if (!listenerResponse.ok) return sendJson(response, 400, { error: listenerResult.error || 'The local model could not use that wake phrase.' })
+
+  await saveLocalEnvValue('KITCHEN_HUB_WAKE_PHRASE', phrase)
+  return sendJson(response, 200, { phrase })
 }
 
 const openWakeEvents = (request, response) => {
@@ -210,10 +243,11 @@ const serveStatic = async (request, response) => {
 const server = createServer(async (request, response) => {
   try {
     if (request.method === 'GET' && request.url === '/api/voice/health') {
-      const { configured, transcriptionModel, commandModel } = getConfig()
-      return sendJson(response, 200, { configured, transcriptionModel, commandModel })
+      const { configured, transcriptionModel, commandModel, wakePhrase } = getConfig()
+      return sendJson(response, 200, { configured, transcriptionModel, commandModel, wakePhrase })
     }
     if (request.method === 'PUT' && request.url === '/api/settings/openai-key') return await saveOpenAIKey(request, response)
+    if (request.method === 'PUT' && request.url === '/api/settings/wake-phrase') return await saveWakePhrase(request, response)
     if (request.method === 'GET' && request.url === '/api/wake/events') return openWakeEvents(request, response)
     if (request.method === 'POST' && request.url === '/api/wake') return await publishWakeEvent(request, response)
     if (request.method === 'POST' && request.url?.startsWith('/api/voice/transcribe')) return await transcribe(request, response)

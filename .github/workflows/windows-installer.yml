@@ -1,0 +1,76 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Installer version (leave blank to use package.json)
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            wake/requirements.txt
+            wake/requirements-build.txt
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+
+      - name: Select version
+        id: version
+        shell: powershell
+        run: |
+          $version = '${{ inputs.version }}'
+          if (-not $version -and '${{ github.ref_type }}' -eq 'tag') {
+            $version = '${{ github.ref_name }}'.TrimStart('v')
+          }
+          if (-not $version) {
+            $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer
+        shell: powershell
+        run: ./packaging/build-windows.ps1 -AppVersion '${{ steps.version.outputs.value }}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KitchenHub-Setup-${{ steps.version.outputs.value }}
+          path: artifacts/KitchenHub-Setup-${{ steps.version.outputs.value }}.exe
+          if-no-files-found: error
+
+      - name: Publish tagged release
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $asset = 'artifacts/KitchenHub-Setup-${{ steps.version.outputs.value }}.exe'
+          gh release view '${{ github.ref_name }}' 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload '${{ github.ref_name }}' $asset --clobber
+          } else {
+            gh release create '${{ github.ref_name }}' $asset --generate-notes --title 'Kitchen Hub ${{ steps.version.outputs.value }}'
+          }

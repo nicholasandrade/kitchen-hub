@@ -20,6 +20,9 @@ dist-ssr
 !.env.example
 .voice-*.wav
 wake/models/
+build/
+artifacts/
+*.spec.bak
 
 # Editor directories and files
 .vscode/*

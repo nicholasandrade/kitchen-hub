@@ -179,6 +179,13 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .connection-form small { color: var(--steel); font-size: 13px; line-height: 1.45; }
 .connection-form button { align-self: flex-start; min-height: 50px; margin-top: 8px; padding: 0 20px; border: 0; border-radius: 11px; color: var(--graphite); background: var(--teal); cursor: pointer; font-weight: 850; }
 .connection-form button:disabled { opacity: .45; cursor: default; }
+.wake-phrase-form { margin-top: 6px; padding: 20px; border-radius: 15px; background: color-mix(in srgb,var(--panel) 72%,var(--page-start)); }
+.connection-form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.connection-form-heading p { margin: 6px 0 0; color: var(--steel); font-size: 14px; }
+.wake-save-state { flex: 0 0 auto; padding: 7px 10px; border-radius: 999px; color: var(--steel); background: color-mix(in srgb,var(--steel) 9%,transparent); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.wake-save-state.saved { color: var(--teal-dark); background: color-mix(in srgb,var(--teal) 15%,transparent); }
+.wake-save-state.error, .connection-feedback.error { color: #b64f3d; }
+.connection-feedback { margin: 2px 0 0; color: var(--teal-dark); font-size: 14px; font-weight: 700; }
 .theme-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
 .theme-option { position: relative; display: flex; min-height: 250px; flex-direction: column; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; color: #293032; background: var(--panel); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
 .theme-option:hover { transform: translateY(-3px); border-color: var(--teal); }
@@ -304,6 +311,8 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-status, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form input { color: #effcff; background: var(--panel); }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-status strong, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form label { color: #effcff; }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-status p, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form small { color: #b7c9d2; }
+.app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .wake-phrase-form { background: color-mix(in srgb,var(--panel) 84%,var(--graphite)); }
+.app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .connection-form-heading p { color: #b7c9d2; }
 .app-shell[data-theme='cyberpunk'] .theme-copy small, .app-shell[data-theme='cyberpunk'] .recipe-tile-copy small, .app-shell[data-theme='cyberpunk'] .recipe-tile-meta { color: #aabdc7; }
 .app-shell[data-theme='cyberpunk'] .ingredients-card, .app-shell[data-theme='cyberpunk'] .step-card, .app-shell[data-theme='cyberpunk'] .conversation-card, .app-shell[data-theme='cyberpunk'] .settings-panel, .app-shell[data-theme='cyberpunk'] .recipe-library, .app-shell[data-theme='cyberpunk'] .theme-option { border-radius: 4px; }
 .app-shell[data-theme='cyberpunk'] h1 { font-family: Bahnschrift, 'Arial Narrow', Inter, sans-serif; font-weight: 760; letter-spacing: .015em; text-transform: uppercase; text-shadow: 2px 2px 0 rgba(255,66,206,.34); }

@@ -22,13 +22,5 @@ if (-not (Test-Path -LiteralPath $modelDir)) {
   Remove-Item -LiteralPath $archive
 }
 
-$keywords = Join-Path $modelDir 'kitchen-hub-keywords.txt'
-& (Join-Path $venv 'Scripts\sherpa-onnx-cli.exe') text2token `
-  --tokens (Join-Path $modelDir 'tokens.txt') `
-  --tokens-type bpe `
-  --bpe-model (Join-Path $modelDir 'bpe.model') `
-  (Join-Path $PSScriptRoot 'keywords_raw.txt') `
-  $keywords
-
 Write-Host "Wake listener installed. Run: npm run wake-listener"
 

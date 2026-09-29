@@ -28,7 +28,7 @@ type VoiceCommand = {
 }
 type ThemeId = 'architectural' | 'warm' | 'mineral' | 'cyberpunk' | 'retro' | 'terracotta' | 'vaporwave' | 'seventies' | 'candy' | 'blueprint'
 
-const WAKE_PHRASE = 'Kitchen Hub'
+const DEFAULT_WAKE_PHRASE = 'Kitchen Hub'
 const WAKE_WINDOW_MS = 7000
 const monotonicNow = () => performance.now()
 
@@ -266,6 +266,10 @@ function App() {
   const [openAIKey, setOpenAIKey] = useState('')
   const [openAIStatus, setOpenAIStatus] = useState<'loading' | 'connected' | 'empty' | 'saving' | 'error'>('loading')
   const [openAIMessage, setOpenAIMessage] = useState('')
+  const [wakePhrase, setWakePhrase] = useState(DEFAULT_WAKE_PHRASE)
+  const [wakePhraseDraft, setWakePhraseDraft] = useState(DEFAULT_WAKE_PHRASE)
+  const [wakePhraseStatus, setWakePhraseStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [wakePhraseMessage, setWakePhraseMessage] = useState('')
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('kitchen-hub:theme')
     return themeOptions.some((option) => option.id === saved) ? saved as ThemeId : 'architectural'
@@ -280,6 +284,7 @@ function App() {
   const lastVoiceAtRef = useRef(0)
   const processingVoiceRef = useRef(false)
   const wakeWindowUntilRef = useRef(0)
+  const wakePhraseRef = useRef(wakePhrase)
   const wakeWindowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wakeSamplesRef = useRef<number[]>([])
   const wakeUploadRef = useRef<Promise<void>>(Promise.resolve())
@@ -320,6 +325,10 @@ function App() {
   useEffect(() => {
     servingsRef.current = servings
   }, [servings])
+
+  useEffect(() => {
+    wakePhraseRef.current = wakePhrase
+  }, [wakePhrase])
 
   useEffect(() => {
     if (!timerRunning) return
@@ -740,7 +749,7 @@ function App() {
     setNotice('Understanding your request')
     let transcript = ''
     try {
-      const vocabulary = [WAKE_PHRASE, ...workingRecipeRef.current.ingredients.map((item) => item.name)].join(', ')
+      const vocabulary = [wakePhraseRef.current, ...workingRecipeRef.current.ingredients.map((item) => item.name)].join(', ')
       const transcriptionResponse = await fetch('/api/voice/transcribe', {
         method: 'POST',
         headers: {
@@ -785,7 +794,7 @@ function App() {
       processingVoiceRef.current = false
       if (shouldListenRef.current) {
         setVoicePhase('ready')
-        setNotice(`Waiting for “${WAKE_PHRASE}”`)
+        setNotice(`Waiting for “${wakePhraseRef.current}”`)
       }
     }
   }
@@ -879,8 +888,8 @@ function App() {
         wakeWindowTimerRef.current = null
         if (!recorderRef.current && shouldListenRef.current) {
           setVoicePhase('ready')
-          setNotice(`Waiting for “${WAKE_PHRASE}”`)
-          showVoiceStatus(`Say “${WAKE_PHRASE}” when you’re ready.`)
+          setNotice(`Waiting for “${wakePhraseRef.current}”`)
+          showVoiceStatus(`Say “${wakePhraseRef.current}” when you’re ready.`)
         }
       }, WAKE_WINDOW_MS)
       setVoicePhase('ready')
@@ -912,6 +921,10 @@ function App() {
       const healthResponse = await fetch('/api/voice/health')
       const health = await healthResponse.json()
       if (!healthResponse.ok || !health.configured) throw new Error('Add OPENAI_API_KEY to the voice server before enabling listening.')
+      const configuredPhrase = String(health.wakePhrase || DEFAULT_WAKE_PHRASE)
+      setWakePhrase(configuredPhrase)
+      setWakePhraseDraft(configuredPhrase)
+      wakePhraseRef.current = configuredPhrase
     } catch (error) {
       setVoicePhase('error')
       setNotice('Voice service needs setup')
@@ -935,9 +948,9 @@ function App() {
     }
     setAlwaysListening(true)
     setVoicePhase('ready')
-    setNotice(`Waiting for “${WAKE_PHRASE}”`)
-    setTranscript(`Say “${WAKE_PHRASE}” before a command.`)
-    addVoiceMessage('assistant', `Say “${WAKE_PHRASE}”, then your command.`)
+    setNotice(`Waiting for “${wakePhraseRef.current}”`)
+    setTranscript(`Say “${wakePhraseRef.current}” before a command.`)
+    addVoiceMessage('assistant', `Say “${wakePhraseRef.current}”, then your command.`)
   }
 
   useEffect(() => () => {
@@ -1008,7 +1021,12 @@ function App() {
       .then(async (response) => {
         const health = await response.json()
         if (!response.ok) throw new Error(health.error || 'Could not reach the local voice service.')
-        if (!cancelled) setOpenAIStatus(health.configured ? 'connected' : 'empty')
+        if (!cancelled) {
+          setOpenAIStatus(health.configured ? 'connected' : 'empty')
+          const configuredPhrase = String(health.wakePhrase || DEFAULT_WAKE_PHRASE)
+          setWakePhrase(configuredPhrase)
+          setWakePhraseDraft(configuredPhrase)
+        }
       })
       .catch((error) => {
         if (!cancelled) {
@@ -1036,6 +1054,32 @@ function App() {
     } catch (error) {
       setOpenAIStatus('error')
       setOpenAIMessage(error instanceof Error ? error.message : 'The API key could not be saved.')
+    }
+  }
+
+  const saveWakePhrase = async () => {
+    setWakePhraseStatus('saving')
+    setWakePhraseMessage('')
+    try {
+      const response = await fetch('/api/settings/wake-phrase', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phrase: wakePhraseDraft }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'The wake phrase could not be changed.')
+      setWakePhrase(result.phrase)
+      wakePhraseRef.current = result.phrase
+      setWakePhraseDraft(result.phrase)
+      setWakePhraseStatus('saved')
+      setWakePhraseMessage(`Now listening for “${result.phrase}.”`)
+      if (shouldListenRef.current) {
+        setNotice(`Waiting for “${result.phrase}”`)
+        showVoiceStatus(`Say “${result.phrase}” before your command.`)
+      }
+    } catch (error) {
+      setWakePhraseStatus('error')
+      setWakePhraseMessage(error instanceof Error ? error.message : 'The wake phrase could not be changed.')
     }
   }
 
@@ -1148,8 +1192,18 @@ function App() {
                 <form className="connection-form" onSubmit={(event) => { event.preventDefault(); void saveOpenAIKey() }}>
                   <label htmlFor="openai-api-key">OpenAI API key</label>
                   <input id="openai-api-key" type="password" value={openAIKey} onChange={(event) => setOpenAIKey(event.target.value)} placeholder={openAIStatus === 'connected' ? 'Enter a new key to replace the current one' : 'sk-…'} autoComplete="off" spellCheck={false} />
-                  <small>The key is saved only in this Hub’s local, Git-ignored <code>.env</code> file. It is never stored in the browser.</small>
+                  <small>The key is saved only in this Hub’s private local data file. It is never stored in the browser.</small>
                   <button type="submit" disabled={!openAIKey.trim() || openAIStatus === 'saving'}>{openAIStatus === 'saving' ? 'Verifying…' : openAIStatus === 'connected' ? 'Replace key' : 'Connect OpenAI'}</button>
+                </form>
+                <form className="connection-form wake-phrase-form" onSubmit={(event) => { event.preventDefault(); void saveWakePhrase() }}>
+                  <div className="connection-form-heading">
+                    <div><label htmlFor="wake-phrase">Wake phrase</label><p>Current phrase: “{wakePhrase}”</p></div>
+                    <span className={`wake-save-state ${wakePhraseStatus}`}>{wakePhraseStatus === 'saving' ? 'Updating…' : wakePhraseStatus === 'saved' ? 'Updated' : wakePhraseStatus === 'error' ? 'Try again' : 'Local'}</span>
+                  </div>
+                  <input id="wake-phrase" type="text" value={wakePhraseDraft} onChange={(event) => { setWakePhraseDraft(event.target.value); setWakePhraseStatus('idle'); setWakePhraseMessage('') }} maxLength={32} placeholder="Kitchen Hub" autoComplete="off" spellCheck={false} />
+                  <small>Use two to four distinctive words that are easy to pronounce. The local wake model reloads immediately.</small>
+                  {wakePhraseMessage ? <p className={`connection-feedback ${wakePhraseStatus}`}>{wakePhraseMessage}</p> : null}
+                  <button type="submit" disabled={wakePhraseDraft.trim().length < 2 || wakePhraseDraft.trim() === wakePhrase || wakePhraseStatus === 'saving'}>{wakePhraseStatus === 'saving' ? 'Updating…' : 'Change wake phrase'}</button>
                 </form>
               </div>
             )}

@@ -136,7 +136,9 @@ Initial connector order:
 - Spotify's current developer policy prohibits a third-party voice-enabled streaming application or voice assistant from controlling Spotify. Until there is written approval or a policy change, Kitchen Hub may open or hand off to Spotify but should not implement native voice playback commands through Spotify's SDK or API.
 - On the Surface Pro, a small companion process running in the signed-in Windows session can use `GlobalSystemMediaTransportControlsSessionManager` to find the active media session and request generic play, pause, stop, next, previous, seek, shuffle, and now-playing information. This behaves like system media controls rather than a Spotify catalog integration. It does not provide search, playlist selection, or guaranteed control when Spotify has no active media session.
 
-## Immediate next build
+## Immediate phase: distribution and real-world testing
 
-Build the local Recipe Lab shell and recipe repository boundary first. Use fixture responses until the shared service and OpenAI connection exist. This lets the interaction and review flow be tested without pretending that brittle local parsing is intelligent conversation.
+The local Cook Mode, OpenAI voice pipeline, wake listener, recipe library, session persistence, credential setup, and completion flow are implemented. Package this working system as a self-contained Windows installer without changing the application architecture.
+
+After the installer is reliable, pause roadmap expansion and run complete cooking sessions on the Surface Pro 7. Let observed wake failures, transcription errors, latency, state recovery, readability, touch requirements, and API usage determine the next work. Recipe Lab AI, shared storage, integrations, and media remain later milestones unless a real cooking session exposes a direct dependency.
 

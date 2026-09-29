@@ -300,6 +300,8 @@ function App() {
 
   const scale = servings / workingRecipe.baseServings
   const progress = ((step + 1) / workingRecipe.steps.length) * 100
+  const currentInstruction = workingRecipe.steps[step]
+  const isLongStep = currentInstruction.length > 115
   const currentVoiceMessage = voiceMessages[voiceMessages.length - 1]
   const voicePanelNeedsRoom = Boolean(pendingEdit)
     || voicePhase === 'error'
@@ -1426,9 +1428,9 @@ function App() {
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <span>{Math.round(progress)}%</span>
           </div>
-          <div className="step-body">
+          <div className={`step-body ${isLongStep ? 'is-long' : ''}`}>
             <div className="step-number">{String(step + 1).padStart(2, '0')}</div>
-            <p>{workingRecipe.steps[step]}</p>
+            <p>{currentInstruction}</p>
           </div>
           <div className="step-actions">
             {step > 0 ? (

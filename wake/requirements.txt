@@ -1,0 +1,6 @@
+sherpa-onnx==1.13.8
+click==8.1.8
+sentencepiece==0.2.1
+pypinyin==0.55.0
+numpy==2.3.3
+

@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -27,9 +28,16 @@ const getConfig = () => {
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || local.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     commandModel: process.env.OPENAI_COMMAND_MODEL || local.OPENAI_COMMAND_MODEL || 'gpt-5-mini',
     wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Kitchen Hub',
+    googleClientId: process.env.GOOGLE_CLIENT_ID || local.GOOGLE_CLIENT_ID || '',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || local.GOOGLE_CLIENT_SECRET || '',
+    googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || local.GOOGLE_REDIRECT_URI || '',
   }
 }
 const port = Number(process.env.VOICE_SERVER_PORT || readLocalEnv().VOICE_SERVER_PORT || 8787)
+const googleTokenPath = join(dataDirectory, 'google-calendar-token.json')
+const googleOAuthStates = new Map()
+const calendarScope = 'https://www.googleapis.com/auth/calendar.readonly'
+const googleRedirectUri = () => getConfig().googleRedirectUri || `http://127.0.0.1:${port}`
 const wakeListenerUrl = process.env.KITCHEN_HUB_WAKE_LISTENER_URL || 'http://127.0.0.1:8788'
 const wakeClients = new Set()
 
@@ -114,6 +122,175 @@ const saveWakePhrase = async (request, response) => {
 
   await saveLocalEnvValue('KITCHEN_HUB_WAKE_PHRASE', phrase)
   return sendJson(response, 200, { phrase })
+}
+
+const readGoogleToken = async () => {
+  if (!existsSync(googleTokenPath)) return null
+  try {
+    return JSON.parse(await readFile(googleTokenPath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+const saveGoogleToken = async (token) => {
+  await mkdir(dataDirectory, { recursive: true })
+  await writeFile(googleTokenPath, JSON.stringify(token, null, 2), { encoding: 'utf8', mode: 0o600 })
+}
+
+const calendarStatus = async (_request, response) => {
+  const { googleClientId, googleClientSecret } = getConfig()
+  const token = await readGoogleToken()
+  return sendJson(response, 200, {
+    configured: Boolean(googleClientId && googleClientSecret),
+    connected: Boolean(token?.refresh_token || (token?.access_token && token?.expires_at > Date.now())),
+    redirectUri: googleRedirectUri(),
+  })
+}
+
+const saveGoogleSettings = async (request, response) => {
+  const body = JSON.parse((await readBody(request, 32 * 1024)).toString('utf8') || '{}')
+  const clientId = String(body.clientId || '').trim()
+  const clientSecret = String(body.clientSecret || '').trim()
+  if (!/^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/.test(clientId)) {
+    return sendJson(response, 400, { error: 'Enter a valid Google OAuth client ID.' })
+  }
+  if (clientSecret.length < 8 || clientSecret.length > 256) {
+    return sendJson(response, 400, { error: 'Enter the client secret supplied with the Google OAuth client.' })
+  }
+  await saveLocalEnvValue('GOOGLE_CLIENT_ID', clientId)
+  await saveLocalEnvValue('GOOGLE_CLIENT_SECRET', clientSecret)
+  return sendJson(response, 200, { configured: true, redirectUri: googleRedirectUri() })
+}
+
+const startGoogleOAuth = async (_request, response) => {
+  const { googleClientId, googleClientSecret } = getConfig()
+  if (!googleClientId || !googleClientSecret) {
+    return sendJson(response, 400, { error: 'Save the Google OAuth client details in Settings first.' })
+  }
+  const state = randomBytes(24).toString('base64url')
+  googleOAuthStates.set(state, Date.now() + 10 * 60 * 1000)
+  const authorization = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+  authorization.search = new URLSearchParams({
+    client_id: googleClientId,
+    redirect_uri: googleRedirectUri(),
+    response_type: 'code',
+    scope: calendarScope,
+    access_type: 'offline',
+    include_granted_scopes: 'true',
+    prompt: 'consent',
+    state,
+  }).toString()
+  response.writeHead(302, { Location: authorization.toString(), 'Cache-Control': 'no-store' })
+  response.end()
+}
+
+const finishGoogleOAuth = async (request, response) => {
+  const requestUrl = new URL(request.url, `http://127.0.0.1:${port}`)
+  const state = requestUrl.searchParams.get('state') || ''
+  const code = requestUrl.searchParams.get('code') || ''
+  const oauthError = requestUrl.searchParams.get('error')
+  const expiresAt = googleOAuthStates.get(state)
+  googleOAuthStates.delete(state)
+  if (oauthError || !code || !expiresAt || expiresAt < Date.now()) {
+    response.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
+    response.end('<!doctype html><title>Google Calendar connection failed</title><p>KitchenHub could not connect Google Calendar. Close this window and try again from Settings.</p>')
+    return
+  }
+
+  const { googleClientId, googleClientSecret } = getConfig()
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: googleRedirectUri(),
+    }),
+  })
+  const token = await tokenResponse.json()
+  if (!tokenResponse.ok) throw new Error(token.error_description || token.error || 'Google rejected the authorization code.')
+  const previous = await readGoogleToken()
+  await saveGoogleToken({
+    access_token: token.access_token,
+    refresh_token: token.refresh_token || previous?.refresh_token,
+    expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
+    scope: token.scope || calendarScope,
+  })
+  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
+  response.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Google Calendar connected</title><body style="font-family:system-ui;padding:40px;background:#f1f3f2;color:#272c2e"><h1>Google Calendar connected</h1><p>You can close this window and return to KitchenHub.</p><script>window.opener?.postMessage({type:"kitchen-hub-google-connected"}, "*"); setTimeout(() => window.close(), 900);</script></body>')
+}
+
+const getGoogleAccessToken = async () => {
+  const token = await readGoogleToken()
+  if (!token) throw Object.assign(new Error('Google Calendar is not connected.'), { status: 401 })
+  if (token.access_token && Number(token.expires_at) > Date.now() + 60_000) return token.access_token
+  if (!token.refresh_token) throw Object.assign(new Error('Google Calendar needs to be connected again.'), { status: 401 })
+  const { googleClientId, googleClientSecret } = getConfig()
+  const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+      refresh_token: token.refresh_token,
+      grant_type: 'refresh_token',
+    }),
+  })
+  const refreshed = await refreshResponse.json()
+  if (!refreshResponse.ok) throw Object.assign(new Error(refreshed.error_description || 'Google Calendar needs to be connected again.'), { status: 401 })
+  const nextToken = {
+    ...token,
+    access_token: refreshed.access_token,
+    expires_at: Date.now() + Number(refreshed.expires_in || 3600) * 1000,
+  }
+  await saveGoogleToken(nextToken)
+  return nextToken.access_token
+}
+
+const listTodayCalendarEvents = async (request, response) => {
+  const requestUrl = new URL(request.url, `http://127.0.0.1:${port}`)
+  const timeMin = requestUrl.searchParams.get('timeMin')
+  const timeMax = requestUrl.searchParams.get('timeMax')
+  const timeZone = requestUrl.searchParams.get('timeZone') || 'UTC'
+  if (!timeMin || !timeMax || Number.isNaN(Date.parse(timeMin)) || Number.isNaN(Date.parse(timeMax))) {
+    return sendJson(response, 400, { error: 'Valid day boundaries are required.' })
+  }
+  const accessToken = await getGoogleAccessToken()
+  const calendarUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
+  calendarUrl.search = new URLSearchParams({
+    timeMin,
+    timeMax,
+    timeZone,
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '20',
+  }).toString()
+  const calendarResponse = await fetch(calendarUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+  const payload = await calendarResponse.json()
+  if (!calendarResponse.ok) throw Object.assign(new Error(payload.error?.message || 'Google Calendar could not load today’s events.'), { status: calendarResponse.status })
+  const events = (payload.items || [])
+    .filter((event) => event.status !== 'cancelled')
+    .map((event) => ({
+      id: String(event.id || ''),
+      title: String(event.summary || 'Untitled event'),
+      start: event.start?.dateTime || event.start?.date || '',
+      end: event.end?.dateTime || event.end?.date || '',
+      allDay: Boolean(event.start?.date && !event.start?.dateTime),
+      location: String(event.location || ''),
+      description: String(event.description || ''),
+      link: String(event.htmlLink || ''),
+    }))
+  return sendJson(response, 200, { events, timeZone })
+}
+
+const disconnectGoogleCalendar = async (_request, response) => {
+  await unlink(googleTokenPath).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error
+  })
+  return sendJson(response, 200, { connected: false })
 }
 
 const openWakeEvents = (request, response) => {
@@ -248,6 +425,18 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'PUT' && request.url === '/api/settings/openai-key') return await saveOpenAIKey(request, response)
     if (request.method === 'PUT' && request.url === '/api/settings/wake-phrase') return await saveWakePhrase(request, response)
+    if (request.method === 'PUT' && request.url === '/api/settings/google-calendar') return await saveGoogleSettings(request, response)
+    if (request.method === 'GET' && request.url === '/api/calendar/status') return await calendarStatus(request, response)
+    if (request.method === 'GET' && request.url === '/api/calendar/oauth/start') return await startGoogleOAuth(request, response)
+    if (request.method === 'GET' && request.url?.startsWith('/api/calendar/oauth/callback')) return await finishGoogleOAuth(request, response)
+    if (request.method === 'GET' && request.url?.startsWith('/?')) {
+      const callbackUrl = new URL(request.url, `http://127.0.0.1:${port}`)
+      if (callbackUrl.searchParams.has('state') && (callbackUrl.searchParams.has('code') || callbackUrl.searchParams.has('error'))) {
+        return await finishGoogleOAuth(request, response)
+      }
+    }
+    if (request.method === 'GET' && request.url?.startsWith('/api/calendar/today')) return await listTodayCalendarEvents(request, response)
+    if (request.method === 'DELETE' && request.url === '/api/calendar/connection') return await disconnectGoogleCalendar(request, response)
     if (request.method === 'GET' && request.url === '/api/wake/events') return openWakeEvents(request, response)
     if (request.method === 'POST' && request.url === '/api/wake') return await publishWakeEvent(request, response)
     if (request.method === 'POST' && request.url?.startsWith('/api/voice/transcribe')) return await transcribe(request, response)

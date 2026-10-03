@@ -24,6 +24,7 @@ The Windows package preserves the existing architecture:
 
 %LOCALAPPDATA%\KitchenHub\data\
   .env
+  google-calendar-token.json
   wake\
   logs\
   edge-profile\
@@ -51,4 +52,4 @@ Before tagging a release:
 2. run `npm run lint` and `npm run build`
 3. test `packaging\build-windows.ps1`
 4. install the result on a clean Windows user profile
-5. confirm Settings can save the API key, microphone access persists, the wake phrase works, and a recipe survives restart
+5. confirm Settings can save the API key, Google Calendar can connect, microphone access persists, the wake phrase works, and a recipe survives restart

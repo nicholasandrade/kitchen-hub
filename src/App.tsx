@@ -12,6 +12,12 @@ type PendingEdit =
   | { kind: 'addition-details'; name: string; stepIndex?: number; amount?: number; unit?: string; note?: string }
 type VoiceMessage = { id: number; role: 'user' | 'assistant'; text: string }
 type VoicePhase = 'off' | 'ready' | 'hearing' | 'processing' | 'error'
+type CalendarEvent = {
+  id: string; title: string; start: string; end: string; allDay: boolean
+  location: string; description: string; link: string
+}
+type CalendarConnectionState = 'loading' | 'setup' | 'ready' | 'connecting' | 'connected' | 'error'
+type CalendarLoadState = 'idle' | 'loading' | 'ready' | 'empty' | 'error'
 const READY_VOICE_MESSAGE = 'Ready for a voice command.'
 type VoiceCommand = {
   action: 'next_step' | 'previous_step' | 'go_to_step' | 'start_over' |
@@ -271,6 +277,13 @@ function App() {
   const [wakePhraseDraft, setWakePhraseDraft] = useState(DEFAULT_WAKE_PHRASE)
   const [wakePhraseStatus, setWakePhraseStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [wakePhraseMessage, setWakePhraseMessage] = useState('')
+  const [calendarConnection, setCalendarConnection] = useState<CalendarConnectionState>('loading')
+  const [calendarLoadState, setCalendarLoadState] = useState<CalendarLoadState>('idle')
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
+  const [calendarMessage, setCalendarMessage] = useState('')
+  const [googleClientId, setGoogleClientId] = useState('')
+  const [googleClientSecret, setGoogleClientSecret] = useState('')
+  const [googleRedirectUri, setGoogleRedirectUri] = useState('')
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('kitchen-hub:theme')
     return themeOptions.some((option) => option.id === saved) ? saved as ThemeId : 'architectural'
@@ -316,6 +329,17 @@ function App() {
       .sort((a, b) => Number(b.relevant) - Number(a.relevant)),
     [scaledIngredients, step],
   )
+  const todayLabel = useMemo(() => new Intl.DateTimeFormat(undefined, {
+    weekday: 'long', month: 'long', day: 'numeric',
+  }).format(new Date()), [])
+  const reminderEvent = useMemo(() => calendarEvents.find((event) =>
+    /\b(remind|pull|take|defrost|thaw|marinate|prep|soak|move|buy|pick up)\b/i.test(`${event.title} ${event.description}`),
+  ), [calendarEvents])
+
+  const formatCalendarTime = (event: CalendarEvent) => {
+    if (event.allDay) return 'All day'
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(event.start))
+  }
 
   useEffect(() => {
     stepRef.current = step
@@ -1025,8 +1049,129 @@ function App() {
     setSettingsOpen(true)
   }
 
+  const openConnections = () => {
+    setSettingsPage('connections')
+    setSettingsOpen(true)
+  }
+
+  const loadCalendarStatus = async () => {
+    try {
+      const response = await fetch('/api/calendar/status')
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not reach the local calendar service.')
+      setGoogleRedirectUri(String(result.redirectUri || ''))
+      const nextState: CalendarConnectionState = result.connected ? 'connected' : result.configured ? 'ready' : 'setup'
+      setCalendarConnection(nextState)
+      setCalendarMessage('')
+      return nextState
+    } catch (error) {
+      setCalendarConnection('error')
+      setCalendarMessage(error instanceof Error ? error.message : 'Could not reach the local calendar service.')
+      return 'error' as CalendarConnectionState
+    }
+  }
+
+  const loadTodayCalendar = async () => {
+    setCalendarLoadState('loading')
+    try {
+      const start = new Date()
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const query = new URLSearchParams({ timeMin: start.toISOString(), timeMax: end.toISOString(), timeZone })
+      const response = await fetch(`/api/calendar/today?${query}`)
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Today’s calendar could not be loaded.')
+      const events = Array.isArray(result.events) ? result.events as CalendarEvent[] : []
+      setCalendarEvents(events)
+      setCalendarLoadState(events.length ? 'ready' : 'empty')
+      setCalendarMessage('')
+    } catch (error) {
+      setCalendarLoadState('error')
+      setCalendarMessage(error instanceof Error ? error.message : 'Today’s calendar could not be loaded.')
+    }
+  }
+
+  const saveGoogleCalendarSettings = async () => {
+    setCalendarConnection('connecting')
+    setCalendarMessage('')
+    try {
+      const response = await fetch('/api/settings/google-calendar', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: googleClientId, clientSecret: googleClientSecret }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Google Calendar settings could not be saved.')
+      setGoogleClientSecret('')
+      setGoogleRedirectUri(String(result.redirectUri || ''))
+      setCalendarConnection('ready')
+      setCalendarMessage('Credentials saved locally. Connect your Google account next.')
+    } catch (error) {
+      setCalendarConnection('error')
+      setCalendarMessage(error instanceof Error ? error.message : 'Google Calendar settings could not be saved.')
+    }
+  }
+
+  const connectGoogleCalendar = () => {
+    setCalendarConnection('connecting')
+    setCalendarMessage('Complete the Google sign-in window to connect your calendar.')
+    window.open('/api/calendar/oauth/start', 'kitchen-hub-google-calendar', 'popup=yes,width=620,height=760')
+    const startedAt = Date.now()
+    const poll = window.setInterval(async () => {
+      const state = await loadCalendarStatus()
+      if (state === 'connected') {
+        window.clearInterval(poll)
+        void loadTodayCalendar()
+      } else if (Date.now() - startedAt > 120_000) {
+        window.clearInterval(poll)
+        setCalendarConnection(state === 'error' ? 'error' : 'ready')
+      }
+    }, 1500)
+  }
+
+  const disconnectGoogleCalendar = async () => {
+    try {
+      const response = await fetch('/api/calendar/connection', { method: 'DELETE' })
+      if (!response.ok) throw new Error('Google Calendar could not be disconnected.')
+      setCalendarConnection('ready')
+      setCalendarLoadState('idle')
+      setCalendarEvents([])
+      setCalendarMessage('Google Calendar is disconnected.')
+    } catch (error) {
+      setCalendarMessage(error instanceof Error ? error.message : 'Google Calendar could not be disconnected.')
+    }
+  }
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => {
+      void loadCalendarStatus().then((state) => {
+        if (state === 'connected') void loadTodayCalendar()
+      })
+    }, 0)
+    const refresh = window.setInterval(() => {
+      void loadCalendarStatus().then((state) => {
+        if (state === 'connected') void loadTodayCalendar()
+      })
+    }, 5 * 60 * 1000)
+    return () => { window.clearTimeout(initial); window.clearInterval(refresh) }
+  }, [])
+
+  useEffect(() => {
+    const handleCalendarConnection = (event: MessageEvent) => {
+      if (event.data?.type !== 'kitchen-hub-google-connected') return
+      void loadCalendarStatus().then((state) => {
+        if (state === 'connected') void loadTodayCalendar()
+      })
+    }
+    window.addEventListener('message', handleCalendarConnection)
+    return () => window.removeEventListener('message', handleCalendarConnection)
+  }, [])
+
   useEffect(() => {
     if (!settingsOpen) return
+    const calendarCheck = window.setTimeout(() => { void loadCalendarStatus() }, 0)
     let cancelled = false
     fetch('/api/voice/health')
       .then(async (response) => {
@@ -1045,7 +1190,7 @@ function App() {
           setOpenAIMessage(error instanceof Error ? error.message : 'Could not reach the local voice service.')
         }
       })
-    return () => { cancelled = true }
+    return () => { cancelled = true; window.clearTimeout(calendarCheck) }
   }, [settingsOpen])
 
   const saveOpenAIKey = async () => {
@@ -1145,6 +1290,9 @@ function App() {
           <span className="brand-copy"><strong>Kitchen Hub</strong><span>{activeView === 'home' ? 'Your countertop command center' : activeView === 'cooking' ? 'Hands-free cooking' : activeView === 'recipe-lab' ? 'Recipe Lab' : 'Kitchen timer'}</span></span>
         </button>
         <div className="topbar-actions">
+          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('recipe-lab')}>Recipe Lab</button> : null}
+          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('timer')}>Timer</button> : null}
+          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setLibraryOpen(true)}>Recipes</button> : null}
           {activeView !== 'home' ? <button className="ghost-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }}>Home</button> : null}
           {activeView === 'cooking' || activeView === 'recipe-lab' ? <button className="ghost-button" type="button" onClick={() => setActiveView(activeView === 'recipe-lab' ? 'cooking' : 'recipe-lab')}>{activeView === 'recipe-lab' ? 'Cook Mode' : 'Recipe Lab'}</button> : null}
           {activeView === 'cooking' || activeView === 'recipe-lab' ? <button className="ghost-button" type="button" aria-label="Open recipe library" onClick={() => setLibraryOpen(true)}>Recipes</button> : null}
@@ -1177,8 +1325,8 @@ function App() {
                 </button>
                 <button type="button" className="settings-row" onClick={() => setSettingsPage('connections')}>
                   <span className="settings-row-icon" aria-hidden="true">⌁</span>
-                  <span className="settings-row-copy"><strong>Connections</strong><small>OpenAI voice and command service</small></span>
-                  <span className="settings-row-value">{openAIStatus === 'connected' ? 'Connected' : openAIStatus === 'loading' ? 'Checking…' : 'Setup required'}<b aria-hidden="true">›</b></span>
+                  <span className="settings-row-copy"><strong>Connections</strong><small>OpenAI voice and Google Calendar</small></span>
+                  <span className="settings-row-value">{openAIStatus === 'connected' && calendarConnection === 'connected' ? 'All connected' : openAIStatus === 'loading' || calendarConnection === 'loading' ? 'Checking…' : 'Setup required'}<b aria-hidden="true">›</b></span>
                 </button>
               </div>
             ) : settingsPage === 'appearance' ? (
@@ -1216,6 +1364,28 @@ function App() {
                   {wakePhraseMessage ? <p className={`connection-feedback ${wakePhraseStatus}`}>{wakePhraseMessage}</p> : null}
                   <button type="submit" disabled={wakePhraseDraft.trim().length < 2 || wakePhraseDraft.trim() === wakePhrase || wakePhraseStatus === 'saving'}>{wakePhraseStatus === 'saving' ? 'Updating…' : 'Change wake phrase'}</button>
                 </form>
+                <section className="calendar-connection" aria-labelledby="google-calendar-settings-title">
+                  <div className={`connection-status calendar-${calendarConnection}`}>
+                    <span aria-hidden="true" />
+                    <div>
+                      <strong id="google-calendar-settings-title">{calendarConnection === 'connected' ? 'Google Calendar connected' : calendarConnection === 'connecting' ? 'Connecting Google Calendar' : calendarConnection === 'ready' ? 'Ready to connect Google' : calendarConnection === 'loading' ? 'Checking Google Calendar' : calendarConnection === 'error' ? 'Calendar needs attention' : 'Google Calendar setup'}</strong>
+                      <p>{calendarConnection === 'connected' ? 'Today’s events and kitchen reminders are available on Home.' : calendarMessage || 'Connect a Google account with read-only calendar access.'}</p>
+                    </div>
+                  </div>
+                  {calendarConnection === 'setup' || (calendarConnection === 'error' && !googleRedirectUri) ? (
+                    <form className="connection-form" onSubmit={(event) => { event.preventDefault(); void saveGoogleCalendarSettings() }}>
+                      <label htmlFor="google-client-id">Google OAuth client ID</label>
+                      <input id="google-client-id" type="text" value={googleClientId} onChange={(event) => setGoogleClientId(event.target.value)} placeholder="…apps.googleusercontent.com" autoComplete="off" spellCheck={false} />
+                      <label htmlFor="google-client-secret">Google OAuth client secret</label>
+                      <input id="google-client-secret" type="password" value={googleClientSecret} onChange={(event) => setGoogleClientSecret(event.target.value)} placeholder="Client secret" autoComplete="off" spellCheck={false} />
+                      <small>Saved only in this Hub’s private local data. Calendar access is read-only.</small>
+                      <button type="submit" disabled={!googleClientId.trim() || !googleClientSecret.trim()}>Save Google credentials</button>
+                    </form>
+                  ) : null}
+                  {googleRedirectUri ? <p className="oauth-helper">Local OAuth return address: <code>{googleRedirectUri}</code></p> : null}
+                  {calendarConnection === 'ready' || calendarConnection === 'connecting' ? <button className="calendar-connect-button" type="button" disabled={calendarConnection === 'connecting'} onClick={connectGoogleCalendar}>{calendarConnection === 'connecting' ? 'Waiting for Google…' : 'Connect Google account'}</button> : null}
+                  {calendarConnection === 'connected' ? <div className="calendar-connection-actions"><button type="button" onClick={() => void loadTodayCalendar()}>Refresh calendar</button><button type="button" className="secondary" onClick={() => void disconnectGoogleCalendar()}>Disconnect</button></div> : null}
+                </section>
               </div>
             )}
           </section>
@@ -1256,26 +1426,39 @@ function App() {
               )}
               <span className="hub-card-action">{hasActiveRecipe ? 'Open cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
             </button>
-            <section className="hub-media" aria-labelledby="media-title">
-              <div className="hub-media-heading"><p className="eyebrow">Quick access</p><h2 id="media-title">Around the kitchen</h2></div>
-              <div className="hub-media-list">
-                <button className="media-destination" type="button" onClick={() => setActiveView('recipe-lab')} aria-label="Open Recipe Lab">
-                  <span className="media-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M12 8h24v32H12zM18 16h12M18 23h12M18 30h7"/><path d="m31 31 7-7 3 3-7 7-5 2z"/></svg></span>
-                  <span><strong>Recipe Lab</strong><small>{labDraft ? `Continue ${labDraft.recipe.name}` : 'Develop an idea with AI'}</small></span><b aria-hidden="true">→</b>
-                </button>
-                <button className="media-destination" type="button" onClick={() => setActiveView('timer')} aria-label="Open kitchen timer">
-                  <span className="media-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="26" r="15"/><path d="M24 26V16M24 26l7 4M18 6h12M24 6v5"/></svg></span>
-                  <span><strong>Timer</strong><small>{timerRemaining === 0 ? 'Time’s up' : timerRunning ? `${formatTimer(timerRemaining)} remaining` : 'Start a kitchen timer'}</small></span><b aria-hidden="true">→</b>
-                </button>
-                <a className="media-destination" href="https://www.youtube.com/" target="_blank" rel="noreferrer" aria-label="Open YouTube">
-                  <span className="media-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><rect x="5" y="10" width="38" height="28" rx="8"/><path d="m21 18 10 6-10 6V18Z"/></svg></span>
-                  <span><strong>YouTube</strong><small>Watch videos</small></span><b aria-hidden="true">↗</b>
-                </a>
-                <a className="media-destination" href="https://open.spotify.com/" target="_blank" rel="noreferrer" aria-label="Open Spotify">
-                  <span className="media-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19"/><path d="M14 20c7-2 15-1 21 2M15 26c6-2 13-1 19 2M17 32c5-1 10-.5 15 2"/></svg></span>
-                  <span><strong>Spotify</strong><small>Play music or podcasts</small></span><b aria-hidden="true">↗</b>
-                </a>
+            <section className="calendar-card" aria-labelledby="calendar-title">
+              <header className="calendar-heading">
+                <div><p className="eyebrow">Today</p><h2 id="calendar-title">{todayLabel}</h2></div>
+                <span className="calendar-source">Google Calendar</span>
+              </header>
+              <div className="calendar-content" aria-live="polite">
+                {calendarConnection === 'loading' || calendarLoadState === 'loading' ? (
+                  <div className="calendar-skeleton" aria-label="Loading today’s calendar"><i /><i /><i /><i /></div>
+                ) : calendarConnection !== 'connected' ? (
+                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">31</span><strong>Bring your day into the kitchen.</strong><p>Connect Google Calendar to see today’s schedule and prep reminders.</p><button type="button" onClick={openConnections}>Connect calendar</button></div>
+                ) : calendarLoadState === 'error' ? (
+                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">!</span><strong>Today’s schedule didn’t load.</strong><p>{calendarMessage}</p><button type="button" onClick={() => void loadTodayCalendar()}>Try again</button></div>
+                ) : calendarLoadState === 'empty' ? (
+                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">✓</span><strong>Nothing scheduled today.</strong><p>Your day is clear. New Google Calendar events will appear here.</p><button type="button" onClick={() => void loadTodayCalendar()}>Refresh</button></div>
+                ) : (
+                  <ol className="calendar-events">
+                    {calendarEvents.slice(0, 6).map((event) => (
+                      <li key={event.id}>
+                        <time dateTime={event.start}>{formatCalendarTime(event)}</time>
+                        <span><strong>{event.title}</strong>{event.location ? <small>{event.location}</small> : null}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
+            </section>
+            <section className="reminder-banner" aria-label="Kitchen reminder">
+              <span className="reminder-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span>
+              <div className="reminder-copy">
+                <p className="eyebrow">Kitchen reminder</p>
+                <strong>{calendarConnection !== 'connected' ? 'Connect your calendar for prep reminders.' : calendarLoadState === 'loading' ? 'Checking today’s reminders…' : reminderEvent ? reminderEvent.title : 'No kitchen reminders for today.'}</strong>
+              </div>
+              {reminderEvent ? <time dateTime={reminderEvent.start}>{formatCalendarTime(reminderEvent)}</time> : calendarConnection !== 'connected' ? <button type="button" onClick={openConnections}>Set up</button> : null}
             </section>
           </div>
         </section>

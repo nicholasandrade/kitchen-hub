@@ -32,7 +32,7 @@ button { font: inherit; }
 .app-shell[data-view='home'] .hub-intro { flex: 0 0 auto; margin-bottom: clamp(24px,3.5dvh,44px); }
 .hub-intro h1 { max-width: 780px; font-size: clamp(46px,5.2vw,72px); }
 .hub-intro > p:last-child { max-width: 720px; margin: 18px 0 0; color: var(--steel); font-size: clamp(18px,1.7vw,24px); line-height: 1.45; }
-.hub-layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(320px,.65fr); align-items: stretch; gap: clamp(30px,4vw,66px); }
+.hub-layout { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: minmax(0,1fr) auto; align-items: stretch; gap: clamp(14px,1.7vw,26px); }
 .app-shell[data-view='home'] .hub-layout { flex: 1; min-height: 0; max-height: 840px; }
 .hub-card { position: relative; display: flex; min-height: clamp(390px,47vh,520px); flex-direction: column; align-items: flex-start; overflow: hidden; padding: clamp(32px,4vw,54px); border: 0; border-radius: 22px; color: #f7fbfa; background: var(--graphite); box-shadow: 0 20px 48px rgba(30,38,40,.13); text-align: left; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
 .app-shell[data-view='home'] .hub-card { min-height: 0; }
@@ -48,6 +48,31 @@ button { font: inherit; }
 .hub-card-action b { color: var(--teal); font-size: 22px; }
 .hub-card.is-empty::after { width: 54%; background: color-mix(in srgb, var(--teal) 10%, transparent); }
 .hub-card.is-empty .hub-card-icon { color: var(--teal); background: color-mix(in srgb, var(--teal) 12%, var(--graphite)); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--teal) 45%,transparent); }
+.calendar-card { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: clamp(26px,3vw,42px); border-radius: 22px; background: color-mix(in srgb,var(--panel) 93%,transparent); box-shadow: 0 20px 48px rgba(30,38,40,.09); }
+.calendar-heading { display: flex; align-items: start; justify-content: space-between; gap: 22px; }
+.calendar-heading h2 { font-size: clamp(27px,2.35vw,40px); line-height: 1.05; letter-spacing: -.035em; }
+.calendar-source { flex: 0 0 auto; padding: 8px 11px; border-radius: 999px; color: var(--steel); background: var(--panel-muted); font-size: 11px; font-weight: 750; }
+.calendar-content { display: flex; min-height: 0; flex: 1; align-items: stretch; margin-top: clamp(20px,3dvh,34px); }
+.calendar-events { width: 100%; margin: 0; padding: 0; overflow: auto; list-style: none; scrollbar-color: color-mix(in srgb,var(--teal) 72%,transparent) transparent; }
+.calendar-events li { display: grid; grid-template-columns: minmax(76px,.3fr) minmax(0,1fr); align-items: start; gap: 18px; min-height: 70px; padding: 13px 4px; }
+.calendar-events li + li { border-top: 1px solid color-mix(in srgb,var(--line) 64%,transparent); }
+.calendar-events time { padding-top: 3px; color: var(--teal-dark); font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.calendar-events li > span { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.calendar-events strong { overflow: hidden; font-size: clamp(18px,1.55vw,24px); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-events small { overflow: hidden; color: var(--steel); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-state { display: flex; width: min(470px,100%); flex-direction: column; align-items: flex-start; justify-content: center; gap: 11px; margin: auto; }
+.calendar-state-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 5px; border-radius: 14px; color: var(--teal-dark); background: color-mix(in srgb,var(--teal) 12%,var(--panel)); font-size: 16px; font-weight: 850; }
+.calendar-state strong { font-size: clamp(23px,2.2vw,34px); line-height: 1.08; letter-spacing: -.035em; }
+.calendar-state p { max-width: 430px; margin: 0; color: var(--steel); font-size: 15px; line-height: 1.5; }
+.calendar-state button, .reminder-banner button { min-height: 44px; padding: 0 17px; border: 0; border-radius: 11px; color: #fff; background: var(--teal-dark); cursor: pointer; font-weight: 750; }
+.calendar-skeleton { display: flex; width: 100%; flex-direction: column; gap: 15px; padding-top: 4px; }
+.calendar-skeleton i { display: block; height: 56px; border-radius: 12px; background: linear-gradient(90deg,var(--panel-muted),color-mix(in srgb,var(--panel-muted) 52%,var(--panel)),var(--panel-muted)); background-size: 220% 100%; animation: skeleton-shift 1.2s ease-in-out infinite; }
+.reminder-banner { grid-column: 1/-1; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 18px; min-height: 92px; padding: 16px clamp(22px,2.5vw,36px); border-radius: 18px; background: color-mix(in srgb,var(--panel) 88%,transparent); box-shadow: 0 12px 34px rgba(30,38,40,.07); }
+.reminder-icon { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 14px; color: var(--teal-dark); background: color-mix(in srgb,var(--teal) 12%,var(--panel)); }
+.reminder-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.reminder-copy .eyebrow { margin-bottom: 5px; }
+.reminder-copy strong { font-size: clamp(18px,1.75vw,26px); line-height: 1.2; }
+.reminder-banner > time { color: var(--teal-dark); font-size: 17px; font-weight: 800; }
 .hub-media { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: clamp(24px,3vw,42px) 0; }
 .app-shell[data-view='home'] .hub-media { min-height: 0; padding: clamp(8px,1.8dvh,22px) 0; }
 .hub-media-heading { margin-bottom: 34px; }
@@ -198,6 +223,17 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .wake-save-state.saved { color: var(--teal-dark); background: color-mix(in srgb,var(--teal) 15%,transparent); }
 .wake-save-state.error, .connection-feedback.error { color: #b64f3d; }
 .connection-feedback { margin: 2px 0 0; color: var(--teal-dark); font-size: 14px; font-weight: 700; }
+.calendar-connection { display: flex; flex-direction: column; gap: 16px; padding-top: 22px; border-top: 1px solid var(--line); }
+.connection-status.calendar-connected > span { background: var(--teal-dark); box-shadow: 0 0 0 5px color-mix(in srgb,var(--teal) 20%,transparent); }
+.connection-status.calendar-error > span { background: #b64f3d; }
+.connection-status.calendar-loading > span, .connection-status.calendar-connecting > span { background: var(--teal); animation: pulse 1.3s ease-in-out infinite; }
+.oauth-helper { margin: 0; color: var(--steel); font-size: 12px; line-height: 1.5; }
+.oauth-helper code { overflow-wrap: anywhere; color: var(--graphite); font-family: ui-monospace,'Cascadia Code',monospace; }
+.calendar-connect-button, .calendar-connection-actions button { min-height: 50px; padding: 0 20px; border: 0; border-radius: 11px; color: #fff; background: var(--teal-dark); cursor: pointer; font-weight: 850; }
+.calendar-connect-button { align-self: flex-start; }
+.calendar-connect-button:disabled { opacity: .5; cursor: default; }
+.calendar-connection-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.calendar-connection-actions button.secondary { color: var(--graphite); background: var(--panel-muted); }
 .theme-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
 .theme-option { position: relative; display: flex; min-height: 250px; flex-direction: column; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; color: #293032; background: var(--panel); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
 .theme-option:hover { transform: translateY(-3px); border-color: var(--teal); }
@@ -356,13 +392,14 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 @keyframes library-panel-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes lab-dot { 0%,100% { opacity: .35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-5px); } }
 @keyframes voice-processing { from { opacity: .62; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes skeleton-shift { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .hub-home, .recipe-lab, .timer-view, .timer-view.is-complete .timer-stage, .recipe-view, .library-backdrop, .recipe-library, .settings-panel, .ingredient-list, .ingredient-list li, .lab-loading i { animation: none; } .settings-button, .hub-card { transition: none; } }
 @media (max-width: 1120px) {
   .app-shell[data-view='home'], .app-shell[data-view='cooking'] { display: block; height: auto; min-height: 100dvh; overflow: visible; }
   .app-shell[data-view='home'] .hub-home, .app-shell[data-view='cooking'] .recipe-view { display: block; }
   .app-shell[data-view='home'] .hub-layout { max-height: none; }
   .app-shell[data-view='home'] .hub-card { min-height: 360px; }
-  .hub-layout { grid-template-columns: 1fr; gap: 32px; } .hub-card { min-height: 360px; } .hub-media { padding: 10px 0; } .lab-workspace { grid-template-columns: 1fr; } .lab-conversation, .lab-draft { min-height: 570px; } .timer-controls { align-items: stretch; flex-direction: column; } .timer-actions button { flex: 1; } .recipe-heading { align-items: start; flex-direction: column; } .workspace { grid-template-columns: 1fr; } .ingredients-card { height: 620px; } .cooking-column { height: 760px; }
+  .hub-layout { grid-template-columns: 1fr; grid-template-rows: auto; gap: 22px; } .hub-card { min-height: 360px; } .calendar-card { min-height: 390px; } .reminder-banner { grid-column: 1; } .lab-workspace { grid-template-columns: 1fr; } .lab-conversation, .lab-draft { min-height: 570px; } .timer-controls { align-items: stretch; flex-direction: column; } .timer-actions button { flex: 1; } .recipe-heading { align-items: start; flex-direction: column; } .workspace { grid-template-columns: 1fr; } .ingredients-card { height: 620px; } .cooking-column { height: 760px; }
   .recipe-grid, .theme-grid { grid-template-columns: 1fr; } .recipe-tile, .theme-option { min-height: 210px; }
 }
 @media (min-width: 1121px) and (max-height: 950px) {
@@ -421,6 +458,18 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .hub-card-copy strong { font-size: clamp(31px,9vw,38px); line-height: 1.02; }
   .hub-card-copy small { font-size: 14px; }
   .hub-card-action { font-size: 14px; }
+  .calendar-card { min-height: 340px; padding: 22px; border-radius: 19px; }
+  .calendar-heading h2 { font-size: 27px; }
+  .calendar-source { display: none; }
+  .calendar-content { margin-top: 16px; }
+  .calendar-events li { grid-template-columns: 68px minmax(0,1fr); gap: 10px; min-height: 62px; padding: 10px 2px; }
+  .calendar-events strong { font-size: 17px; }
+  .calendar-state { margin: 20px 0; }
+  .calendar-state strong { font-size: 25px; }
+  .reminder-banner { grid-template-columns: auto minmax(0,1fr); min-height: 82px; gap: 13px; padding: 14px 16px; border-radius: 16px; }
+  .reminder-icon { width: 44px; height: 44px; }
+  .reminder-copy strong { font-size: 17px; }
+  .reminder-banner > time, .reminder-banner > button { grid-column: 2; justify-self: start; }
   .hub-media { padding: 0; }
   .hub-media-heading { margin-bottom: 16px; }
   .hub-media-heading h2 { font-size: 27px; }

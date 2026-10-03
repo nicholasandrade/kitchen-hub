@@ -60,10 +60,15 @@ if (-not (Test-LocalEndpoint $voiceHealthUrl)) {
 }
 
 $surfaceUrl = "http://${lanAddress}:$Port/"
+$monitorClientsUrl = "http://${lanAddress}:$Port/__kitchenhub/clients"
+$env:KITCHEN_HUB_LAN_MONITOR = '1'
+$env:VITE_KITCHEN_HUB_LAN_MONITOR = '1'
 Write-Host ''
 Write-Host 'KitchenHub LAN preview is starting.' -ForegroundColor Green
 Write-Host "Open this address on the Surface: $surfaceUrl" -ForegroundColor Cyan
 Write-Host 'Keep this terminal open. Saved frontend changes will update on the Surface automatically.'
+Write-Host "Private visual monitor: $monitorClientsUrl"
+Write-Host 'The visual monitor hides all form-field values and is available only during LAN development.'
 Write-Host 'Press Ctrl+C here when the design session is finished.'
 Write-Host ''
 

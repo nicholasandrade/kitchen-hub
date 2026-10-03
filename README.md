@@ -46,6 +46,8 @@ npm run dev:lan
 
 The command prints a private-network URL such as `http://192.168.1.74:5173/`. Open that URL in Edge on the Surface and keep the terminal open. Vite hot reload sends saved frontend changes to the Surface immediately. On the first run, Windows may ask whether Node.js can communicate on the network; allow **Private networks** only.
 
+LAN development also enables a visual monitor that reports each connected browser's current viewport, layout measurements, and a periodically refreshed screenshot. This lets the development computer inspect the Surface's actual rendering instead of approximating it with a desktop browser. Form controls are omitted from screenshots so API keys and other typed values are never captured. The monitor is enabled only by `npm run dev:lan`; it is absent from production builds and should be used only on a trusted private network.
+
 This HTTP preview is intended for visual iteration. Browsers generally require HTTPS for microphone capture on a remote device, so use the installed KitchenHub build when testing wake-word and voice behavior.
 
 The app creates or updates `.env` only when an API key or wake phrase is saved in Settings. This file is ignored by Git. Never place the API key in a `VITE_*` variable.

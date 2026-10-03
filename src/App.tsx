@@ -1138,7 +1138,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell" data-theme={theme}>
+    <main className="app-shell" data-theme={theme} data-view={activeView}>
       <header className="topbar">
         <button className="brand brand-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }} aria-label="Go to Kitchen Hub home">
           <span className="brand-mark" aria-hidden="true">K</span>

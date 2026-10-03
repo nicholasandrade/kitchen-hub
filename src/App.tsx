@@ -1243,12 +1243,7 @@ function App() {
       ) : null}
 
       {activeView === 'home' ? (
-        <section className="hub-home" aria-labelledby="hub-title">
-          <div className="hub-intro">
-            <p className="eyebrow">Kitchen Hub</p>
-            <h1 id="hub-title">What would you like to do?</h1>
-            <p>Cook dinner, put something on, or fill the room with music.</p>
-          </div>
+        <section className="hub-home" aria-label="Kitchen Hub home">
           <div className="hub-layout">
             <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
               <span className="hub-card-icon" aria-hidden="true">

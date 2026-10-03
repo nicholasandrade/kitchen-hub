@@ -27,13 +27,13 @@ button { font: inherit; }
 .topbar-actions { justify-self: end; display: flex; gap: 9px; }
 .ghost-button { padding: 9px 15px; border: 1px solid var(--line); border-radius: 9px; color: #41494b; background: rgba(255,255,255,.58); text-decoration: none; cursor: pointer; }
 .hub-home { width: min(1500px,100%); margin: 0 auto; padding: clamp(48px,8vh,100px) 0 70px; animation: hub-enter .4s cubic-bezier(.2,.72,.25,1) both; }
-.app-shell[data-view='home'] .hub-home { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: clamp(28px,4.5dvh,64px) 0 clamp(18px,3dvh,36px); }
+.app-shell[data-view='home'] .hub-home { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 0; padding: clamp(24px,4dvh,52px) 0; }
 .hub-intro { max-width: 820px; margin-bottom: clamp(38px,6vh,66px); }
 .app-shell[data-view='home'] .hub-intro { flex: 0 0 auto; margin-bottom: clamp(24px,3.5dvh,44px); }
 .hub-intro h1 { max-width: 780px; font-size: clamp(46px,5.2vw,72px); }
 .hub-intro > p:last-child { max-width: 720px; margin: 18px 0 0; color: var(--steel); font-size: clamp(18px,1.7vw,24px); line-height: 1.45; }
 .hub-layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(320px,.65fr); align-items: stretch; gap: clamp(30px,4vw,66px); }
-.app-shell[data-view='home'] .hub-layout { flex: 1; min-height: 0; max-height: 560px; }
+.app-shell[data-view='home'] .hub-layout { flex: 1; min-height: 0; max-height: 840px; }
 .hub-card { position: relative; display: flex; min-height: clamp(390px,47vh,520px); flex-direction: column; align-items: flex-start; overflow: hidden; padding: clamp(32px,4vw,54px); border: 0; border-radius: 22px; color: #f7fbfa; background: var(--graphite); box-shadow: 0 20px 48px rgba(30,38,40,.13); text-align: left; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
 .app-shell[data-view='home'] .hub-card { min-height: 0; }
 .hub-card::after { position: absolute; right: -12%; bottom: -42%; width: 62%; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--teal) 15%, transparent); content: ''; }
@@ -412,10 +412,7 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .topbar-actions .ghost-button { min-width: 0; min-height: 48px; padding: 7px 9px; overflow: hidden; border: 0; border-radius: 11px; background: transparent; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-actions .ghost-button:active { background: var(--panel-muted); }
 
-  .app-shell[data-view='home'] .hub-home { padding: 28px 0 12px; }
-  .hub-intro { margin-bottom: 24px; }
-  .hub-intro h1 { max-width: 340px; font-size: clamp(36px,11vw,46px); line-height: 1; }
-  .hub-intro > p:last-child { margin-top: 12px; font-size: 16px; line-height: 1.45; }
+  .app-shell[data-view='home'] .hub-home { padding: 22px 0 12px; }
   .hub-layout { gap: 30px; }
   .app-shell[data-view='home'] .hub-card, .hub-card { min-height: 250px; padding: 24px; border-radius: 19px; }
   .hub-card-icon { width: 52px; height: 52px; border-radius: 14px; }

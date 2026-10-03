@@ -36,6 +36,18 @@ npm run wake-listener
 
 For live frontend development, run `npm run dev` and open `http://127.0.0.1:5173`. For the production-style path, open `http://127.0.0.1:8787` after `npm run build`.
 
+### Live Surface design preview
+
+To iterate on the interface without building an installer, connect the development computer and Surface to the same private network, then run:
+
+```powershell
+npm run dev:lan
+```
+
+The command prints a private-network URL such as `http://192.168.1.74:5173/`. Open that URL in Edge on the Surface and keep the terminal open. Vite hot reload sends saved frontend changes to the Surface immediately. On the first run, Windows may ask whether Node.js can communicate on the network; allow **Private networks** only.
+
+This HTTP preview is intended for visual iteration. Browsers generally require HTTPS for microphone capture on a remote device, so use the installed KitchenHub build when testing wake-word and voice behavior.
+
 The app creates or updates `.env` only when an API key or wake phrase is saved in Settings. This file is ignored by Git. Never place the API key in a `VITE_*` variable.
 
 ## Build the Windows installer

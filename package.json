@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\Start-KitchenHubLanDev.ps1",
     "voice-server": "node server/index.mjs",
     "wake-listener": ".venv-wake\\Scripts\\python.exe wake\\listener.py",
     "wake-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File wake\\setup.ps1",

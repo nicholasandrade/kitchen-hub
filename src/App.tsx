@@ -34,7 +34,7 @@ type VoiceCommand = {
   response: string
   confidence: number
 }
-type ThemeId = 'architectural' | 'warm' | 'mineral' | 'cyberpunk' | 'retro' | 'terracotta' | 'vaporwave' | 'seventies' | 'candy' | 'blueprint'
+type ThemeId = 'architectural' | 'warm' | 'mineral' | 'cyberpunk' | 'retro' | 'terracotta' | 'vaporwave' | 'seventies' | 'candy' | 'blueprint' | 'tavern'
 
 const DEFAULT_WAKE_PHRASE = 'Kitchen Hub'
 const WAKE_WINDOW_MS = 7000
@@ -51,6 +51,7 @@ const themeOptions: Array<{ id: ThemeId; name: string; description: string }> = 
   { id: 'seventies', name: 'Seventies Kitchen', description: 'Avocado, harvest gold, and burnt sienna.' },
   { id: 'candy', name: 'Candy Lab', description: 'Bubblegum, grape soda, and acid lime.' },
   { id: 'blueprint', name: 'Blueprint', description: 'Deep cobalt, drafting lines, and chalk white.' },
+  { id: 'tavern', name: 'Adventurer’s Tavern', description: 'Aged parchment, dark oak, and candlelit brass.' },
 ]
 const recipe: Recipe = {
   id: 'miso-ginger-cod',

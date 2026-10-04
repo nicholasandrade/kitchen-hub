@@ -1437,13 +1437,9 @@ function App() {
           </div>
         </section>
       ) : activeView === 'recipe-lab' ? (
-        <section className="recipe-lab" aria-labelledby="lab-title">
+        <section className="recipe-lab" aria-label="Recipe Lab">
           <header className="lab-heading">
-            <div>
-              <p className="eyebrow">Cooking · Recipe Lab</p>
-              <h1 id="lab-title">Turn an idea into dinner.</h1>
-              <p>Explore freely here. Nothing enters your recipe library until you approve it.</p>
-            </div>
+            <p className="eyebrow">Cooking · Recipe Lab</p>
             <span className="prototype-badge">Prototype AI</span>
           </header>
 

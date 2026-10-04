@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { localRecipeRepository, type RecipeDraft } from './recipeRepository'
+import { localCookingSessionRepository } from './cookingSessionRepository'
 
 export type Ingredient = { name: string; amount: number; unit: string; note?: string; steps: number[] }
 export type Recipe = {
@@ -240,12 +241,13 @@ const createFixtureDraft = (prompt: string): RecipeDraft => {
 }
 
 function App() {
-  const [baseRecipe, setBaseRecipe] = useState<Recipe>(recipe)
-  const [workingRecipe, setWorkingRecipe] = useState<Recipe>(() => cloneRecipe(recipe))
-  const [hasActiveRecipe, setHasActiveRecipe] = useState(() => localStorage.getItem('kitchen-hub:has-active-recipe') !== 'false')
-  const [servings, setServings] = useState(recipe.baseServings)
-  const [step, setStep] = useState(0)
-  const [checked, setChecked] = useState<Set<number>>(new Set())
+  const [restoredSession] = useState(() => localCookingSessionRepository.load(recipe))
+  const [baseRecipe, setBaseRecipe] = useState<Recipe>(() => restoredSession?.baseRecipe ?? recipe)
+  const [workingRecipe, setWorkingRecipe] = useState<Recipe>(() => restoredSession?.workingRecipe ?? cloneRecipe(recipe))
+  const [hasActiveRecipe, setHasActiveRecipe] = useState(() => Boolean(restoredSession))
+  const [servings, setServings] = useState(() => restoredSession?.servings ?? recipe.baseServings)
+  const [step, setStep] = useState(() => restoredSession?.step ?? 0)
+  const [checked, setChecked] = useState<Set<number>>(() => new Set(restoredSession?.checkedIngredients ?? []))
   const [alwaysListening, setAlwaysListening] = useState(false)
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('off')
   const [micLevel, setMicLevel] = useState(0)
@@ -255,7 +257,7 @@ function App() {
     { id: 0, role: 'assistant', text: READY_VOICE_MESSAGE },
   ])
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null)
-  const [hasDraftChanges, setHasDraftChanges] = useState(false)
+  const [hasDraftChanges, setHasDraftChanges] = useState(() => restoredSession?.hasDraftChanges ?? false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [libraryRecipes, setLibraryRecipes] = useState<Recipe[]>(() => {
     const saved = localRecipeRepository.loadSavedRecipes()
@@ -357,6 +359,18 @@ function App() {
   useEffect(() => {
     wakePhraseRef.current = wakePhrase
   }, [wakePhrase])
+
+  useEffect(() => {
+    if (!hasActiveRecipe) return
+    localCookingSessionRepository.save({
+      baseRecipe,
+      workingRecipe,
+      step,
+      servings,
+      checkedIngredients: [...checked],
+      hasDraftChanges,
+    })
+  }, [baseRecipe, checked, hasActiveRecipe, hasDraftChanges, servings, step, workingRecipe])
 
   useEffect(() => {
     if (!timerRunning) return
@@ -1017,7 +1031,6 @@ function App() {
     setPending(null)
     setHasDraftChanges(false)
     setHasActiveRecipe(true)
-    localStorage.setItem('kitchen-hub:has-active-recipe', 'true')
     setVoiceMessages([{ id: voiceMessageIdRef.current++, role: 'assistant', text: READY_VOICE_MESSAGE }])
     setLibraryOpen(false)
     setActiveView('cooking')
@@ -1025,8 +1038,8 @@ function App() {
 
   const finishRecipe = () => {
     pauseHandsFree()
+    localCookingSessionRepository.clear()
     setHasActiveRecipe(false)
-    localStorage.setItem('kitchen-hub:has-active-recipe', 'false')
     setChecked(new Set())
     setStep(0)
     stepRef.current = 0

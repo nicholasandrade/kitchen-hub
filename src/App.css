@@ -20,10 +20,9 @@ button { font: inherit; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand-button { min-height: 48px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
 .brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: #f8fbfa; background: var(--teal-dark); font: 750 20px/1 Inter, 'Segoe UI', sans-serif; }
-.brand-copy { display: flex; flex-direction: column; line-height: 1.25; }
-.brand strong { font-size: 15px; letter-spacing: .02em; }
-.brand span { color: #777166; font-size: 12px; }
 .brand .brand-mark { color: #f8fbfa; font-size: 20px; }
+.brand-mark svg { width: 28px; height: 28px; fill: var(--teal); stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+.brand-mark svg circle { stroke: var(--teal-dark); stroke-width: 2; }
 .topbar-actions { justify-self: end; display: flex; gap: 9px; }
 .ghost-button { padding: 9px 15px; border: 1px solid var(--line); border-radius: 9px; color: #41494b; background: rgba(255,255,255,.58); text-decoration: none; cursor: pointer; }
 .hub-home { width: min(1500px,100%); margin: 0 auto; padding: clamp(48px,8vh,100px) 0 70px; animation: hub-enter .4s cubic-bezier(.2,.72,.25,1) both; }
@@ -425,7 +424,7 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .conversation-log { padding: 13px 18px; }
 }
 @media (max-width: 560px) {
-  .app-shell { padding: 16px 12px 24px; } .brand-copy { display: none; } .topbar-actions { gap: 5px; } .ghost-button { padding: 8px 9px; font-size: 13px; } .hub-home, .recipe-lab, .timer-view { padding: 42px 4px 90px; } .hub-intro { margin-bottom: 34px; } .hub-card { min-height: 390px; padding: 30px 24px; border-radius: 18px; } .hub-card-copy strong { font-size: 42px; } .media-destination { min-height: 104px; padding: 20px 8px; } .lab-heading { align-items: flex-start; flex-direction: column; } .lab-heading h1 { font-size: 48px; } .prototype-badge { margin: 0; } .lab-workspace { gap: 16px; } .lab-conversation, .lab-draft { min-height: 540px; padding: 26px 20px; border-radius: 18px; } .lab-response { min-height: 300px; } .lab-answer { grid-template-columns: 42px minmax(0,1fr); gap: 15px; } .lab-answer-mark { width: 42px; height: 42px; } .lab-answer p { font-size: 25px; } .lab-composer > div { grid-template-columns: minmax(0,1fr) 54px; } .lab-composer button { width: 54px; height: 54px; } .lab-draft-heading { flex-direction: column; } .lab-draft-heading h2 { font-size: 37px; } .lab-draft-actions { display: grid; grid-template-columns: 1fr; } .lab-draft-actions button { min-height: 54px; } .timer-stage { min-height: 280px; border-radius: 18px; } .timer-display { font-size: 92px; } .timer-presets { display: grid; grid-template-columns: repeat(2,1fr); } .timer-presets button { min-height: 58px; } .timer-actions { display: grid; grid-template-columns: 1fr 1fr; } .settings-button { left: 14px; bottom: 14px; } .recipe-facts { width: 100%; justify-content: space-between; }
+  .app-shell { padding: 16px 12px 24px; } .topbar-actions { gap: 5px; } .ghost-button { padding: 8px 9px; font-size: 13px; } .hub-home, .recipe-lab, .timer-view { padding: 42px 4px 90px; } .hub-intro { margin-bottom: 34px; } .hub-card { min-height: 390px; padding: 30px 24px; border-radius: 18px; } .hub-card-copy strong { font-size: 42px; } .media-destination { min-height: 104px; padding: 20px 8px; } .lab-heading { align-items: flex-start; flex-direction: column; } .lab-heading h1 { font-size: 48px; } .prototype-badge { margin: 0; } .lab-workspace { gap: 16px; } .lab-conversation, .lab-draft { min-height: 540px; padding: 26px 20px; border-radius: 18px; } .lab-response { min-height: 300px; } .lab-answer { grid-template-columns: 42px minmax(0,1fr); gap: 15px; } .lab-answer-mark { width: 42px; height: 42px; } .lab-answer p { font-size: 25px; } .lab-composer > div { grid-template-columns: minmax(0,1fr) 54px; } .lab-composer button { width: 54px; height: 54px; } .lab-draft-heading { flex-direction: column; } .lab-draft-heading h2 { font-size: 37px; } .lab-draft-actions { display: grid; grid-template-columns: 1fr; } .lab-draft-actions button { min-height: 54px; } .timer-stage { min-height: 280px; border-radius: 18px; } .timer-display { font-size: 92px; } .timer-presets { display: grid; grid-template-columns: repeat(2,1fr); } .timer-presets button { min-height: 58px; } .timer-actions { display: grid; grid-template-columns: 1fr 1fr; } .settings-button { left: 14px; bottom: 14px; } .recipe-facts { width: 100%; justify-content: space-between; }
   .ingredients-card, .step-card, .conversation-card { border-radius: 19px; } .card-heading { align-items: start; flex-direction: column; }
   .ingredient-copy { grid-template-columns: minmax(76px,.7fr) minmax(0,1.3fr); gap: 6px; } .ingredient-name { min-width: 0; overflow-wrap: anywhere; }
   .step-body { grid-template-columns: 1fr; gap: 20px; padding: 40px 3px; } .step-body p { font-size: 30px; }
@@ -438,9 +437,6 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .topbar { min-height: 48px; padding: 0 54px 10px 0; }
   .brand-button { min-height: 40px; }
   .brand-mark { display: grid; width: 36px; height: 36px; border-radius: 10px; font-size: 17px; }
-  .brand-copy { display: flex; }
-  .brand strong { font-size: 14px; }
-  .brand-copy > span { display: none; }
   .settings-button { top: 12px; right: 16px; bottom: auto; left: auto; width: 42px; height: 42px; border-radius: 12px; }
   .settings-button svg { width: 22px; height: 22px; }
   .topbar-actions:not(:empty) { position: fixed; right: 12px; bottom: max(10px,env(safe-area-inset-bottom)); left: 12px; display: grid; width: auto; grid-auto-columns: 1fr; grid-auto-flow: column; justify-self: stretch; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 17px; background: color-mix(in srgb,var(--panel) 94%,transparent); box-shadow: 0 10px 34px rgba(30,38,40,.18); backdrop-filter: blur(16px); z-index: 18; }

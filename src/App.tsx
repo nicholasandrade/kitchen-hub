@@ -1268,9 +1268,10 @@ function App() {
   return (
     <main className="app-shell" data-theme={theme} data-view={activeView}>
       <header className="topbar">
-        <button className="brand brand-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }} aria-label="Go to Kitchen Hub home">
-          <span className="brand-mark" aria-hidden="true">K</span>
-          <span className="brand-copy"><strong>Kitchen Hub</strong><span>{activeView === 'home' ? 'Your countertop command center' : activeView === 'cooking' ? 'Hands-free cooking' : activeView === 'recipe-lab' ? 'Recipe Lab' : 'Kitchen timer'}</span></span>
+        <button className="brand brand-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }} aria-label="Go to Hub home">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48"><path d="M15 12v24M33 12v24M15 24h18" /><circle cx="24" cy="24" r="3.5" /></svg>
+          </span>
         </button>
         <div className="topbar-actions">
           {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('recipe-lab')}>Recipe Lab</button> : null}
@@ -1295,7 +1296,7 @@ function App() {
             <div className="library-heading">
               <div className="settings-heading-copy">
                 {settingsPage !== 'root' ? <button type="button" className="settings-back" onClick={() => setSettingsPage('root')} aria-label="Back to settings">←</button> : null}
-                <div><p className="eyebrow">{settingsPage === 'root' ? 'Kitchen Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
+                <div><p className="eyebrow">{settingsPage === 'root' ? 'Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
               </div>
               <button type="button" className="library-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button>
             </div>
@@ -1385,7 +1386,7 @@ function App() {
       ) : null}
 
       {activeView === 'home' ? (
-        <section className="hub-home" aria-label="Kitchen Hub home">
+        <section className="hub-home" aria-label="Hub home">
           <div className="hub-layout">
             <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
               <span className="hub-card-icon" aria-hidden="true">

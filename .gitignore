@@ -21,6 +21,8 @@ dist-ssr
 google-calendar-token.json
 .voice-*.wav
 wake/models/
+wake/active-keyword.txt
+wake/wake-phrase.txt
 build/
 artifacts/
 *.spec.bak

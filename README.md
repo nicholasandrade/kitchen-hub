@@ -45,7 +45,7 @@ To iterate on the interface without building an installer, connect the developme
 npm run dev:lan
 ```
 
-The command prints a private-network URL such as `http://192.168.1.74:5173/`. Open that URL in Edge on the Surface and keep the terminal open. Vite hot reload sends saved frontend changes to the Surface immediately. On the first run, Windows may ask whether Node.js can communicate on the network; allow **Private networks** only.
+The command starts the API and local wake listener, then prints a private-network URL such as `http://192.168.1.74:5173/`. Open that URL in Edge on the Surface and keep the terminal open. Vite hot reload sends saved frontend changes to the Surface immediately. Wake phrases changed in **Settings → Connections** are persisted and reloaded immediately. On the first run, Windows may ask whether Node.js can communicate on the network; allow **Private networks** only.
 
 LAN development also enables a visual monitor that reports each connected browser's current viewport, layout measurements, and a periodically refreshed screenshot. This lets the development computer inspect the Surface's actual rendering instead of approximating it with a desktop browser. Form controls are omitted from screenshots so API keys and other typed values are never captured. The monitor is enabled only by `npm run dev:lan`; it is absent from production builds and should be used only on a trusted private network.
 

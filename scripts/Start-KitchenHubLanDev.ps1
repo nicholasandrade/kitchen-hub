@@ -8,6 +8,9 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $logDirectory = Join-Path $projectRoot 'logs'
 $vite = Join-Path $projectRoot 'node_modules\.bin\vite.cmd'
 $voiceHealthUrl = 'http://127.0.0.1:8787/api/voice/health'
+$wakeHealthUrl = 'http://127.0.0.1:8788/health'
+$wakePython = Join-Path $projectRoot '.venv-wake\Scripts\python.exe'
+$wakeListener = Join-Path $projectRoot 'wake\listener.py'
 
 function Test-LocalEndpoint([string]$Url) {
   try {
@@ -28,6 +31,9 @@ function Test-PrivateIPv4([string]$Address) {
 if (-not (Test-Path -LiteralPath $vite)) {
   throw 'KitchenHub dependencies are missing. Run npm install first.'
 }
+if (-not (Test-Path -LiteralPath $wakePython)) {
+  throw 'The local wake listener is not installed. Run npm run wake-setup first.'
+}
 
 $lanAddresses = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) |
   Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
@@ -41,6 +47,7 @@ if (-not $lanAddress) {
 }
 
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+$env:KITCHEN_HUB_DATA_DIR = $projectRoot
 
 $voiceProcess = $null
 if (-not (Test-LocalEndpoint $voiceHealthUrl)) {
@@ -56,6 +63,26 @@ if (-not (Test-LocalEndpoint $voiceHealthUrl)) {
   if (-not (Test-LocalEndpoint $voiceHealthUrl)) {
     Stop-Process -Id $voiceProcess.Id -Force -ErrorAction SilentlyContinue
     throw "The KitchenHub API did not start. Check logs\lan-voice-server-error.log."
+  }
+}
+
+$wakeProcess = $null
+if (-not (Test-LocalEndpoint $wakeHealthUrl)) {
+  $wakeProcess = Start-Process -FilePath $wakePython -ArgumentList "`"$wakeListener`"" -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput (Join-Path $logDirectory 'lan-wake-listener.log') `
+    -RedirectStandardError (Join-Path $logDirectory 'lan-wake-listener-error.log')
+
+  $deadline = (Get-Date).AddSeconds(20)
+  while (-not (Test-LocalEndpoint $wakeHealthUrl) -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 300
+  }
+
+  if (-not (Test-LocalEndpoint $wakeHealthUrl)) {
+    Stop-Process -Id $wakeProcess.Id -Force -ErrorAction SilentlyContinue
+    if ($voiceProcess -and -not $voiceProcess.HasExited) {
+      Stop-Process -Id $voiceProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+    throw "The KitchenHub wake listener did not start. Check logs\lan-wake-listener-error.log."
   }
 }
 
@@ -78,6 +105,9 @@ try {
     throw "Vite exited with code $LASTEXITCODE."
   }
 } finally {
+  if ($wakeProcess -and -not $wakeProcess.HasExited) {
+    Stop-Process -Id $wakeProcess.Id -Force -ErrorAction SilentlyContinue
+  }
   if ($voiceProcess -and -not $voiceProcess.HasExited) {
     Stop-Process -Id $voiceProcess.Id -Force -ErrorAction SilentlyContinue
   }

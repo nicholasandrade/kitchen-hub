@@ -23,9 +23,10 @@ button { font: inherit; }
 .brand-button { min-height: 84px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
 .brand-mark { display: grid; place-items: center; width: 78px; height: 84px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .orka-logo { display: block; width: 70px; height: 76px; shape-rendering: geometricPrecision; }
-.orka-body { fill: var(--orka-body); }
+.orka-body, .orka-wordmark { fill: var(--orka-body); }
 .orka-cutout { fill: var(--orka-cutout); }
 .orka-accent { fill: var(--orka-accent); transform-box: fill-box; transform-origin: center; }
+.orka-wordmark { font-family: Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif; font-size: 132px; font-weight: 820; letter-spacing: -8px; }
 .topbar-actions { justify-self: end; display: flex; gap: 9px; }
 .ghost-button { padding: 9px 15px; border: 1px solid var(--line); border-radius: 9px; color: #41494b; background: rgba(255,255,255,.58); text-decoration: none; cursor: pointer; }
 .hub-home { width: min(1500px,100%); margin: 0 auto; padding: clamp(48px,8vh,100px) 0 70px; animation: hub-enter .4s cubic-bezier(.2,.72,.25,1) both; }

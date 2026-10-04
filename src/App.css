@@ -2,6 +2,7 @@
 :root { --porcelain: #f1f3f2; --panel: #fbfcfb; --panel-muted: #f0f3f2; --graphite: #272c2e; --steel: #687175; --teal: #43818a; --teal-dark: #315f66; --line: rgba(48,57,59,.15); --page-start: #f5f6f5; --page-end: #e9eceb; --glow: rgba(92,135,141,.14); }
 button { font: inherit; }
 .app-shell {
+  --orka-body: #171b1c; --orka-cutout: var(--panel); --orka-accent: var(--teal);
   min-height: 100dvh; padding: 22px clamp(20px, 3vw, 52px) 36px; color: #252a2c;
   background: radial-gradient(circle at 88% -12%, var(--glow), transparent 31%), linear-gradient(145deg, var(--page-start) 0%, var(--page-end) 100%);
   font-family: Inter, 'Segoe UI Variable', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
@@ -20,10 +21,11 @@ button { font: inherit; }
 .topbar { display: grid; flex: 0 0 auto; grid-template-columns: 1fr auto; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand-button { min-height: 48px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
-.brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: #f8fbfa; background: var(--teal-dark); font: 750 20px/1 Inter, 'Segoe UI', sans-serif; }
-.brand .brand-mark { color: #f8fbfa; font-size: 20px; }
-.brand-mark svg { width: 28px; height: 28px; fill: var(--teal); stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
-.brand-mark svg circle { stroke: var(--teal-dark); stroke-width: 2; }
+.brand-mark { display: grid; place-items: center; width: 48px; height: 52px; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+.orka-logo { display: block; width: 42px; height: 46px; shape-rendering: geometricPrecision; }
+.orka-body { fill: var(--orka-body); }
+.orka-cutout { fill: var(--orka-cutout); }
+.orka-accent { fill: var(--orka-accent); transform-box: fill-box; transform-origin: center; }
 .topbar-actions { justify-self: end; display: flex; gap: 9px; }
 .ghost-button { padding: 9px 15px; border: 1px solid var(--line); border-radius: 9px; color: #41494b; background: rgba(255,255,255,.58); text-decoration: none; cursor: pointer; }
 .hub-home { width: min(1500px,100%); margin: 0 auto; padding: clamp(48px,8vh,100px) 0 70px; animation: hub-enter .4s cubic-bezier(.2,.72,.25,1) both; }
@@ -342,6 +344,7 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .lab-draft-placeholder h2 { font-size: clamp(32px,3vw,48px); line-height: 1.04; }
 .lab-draft-placeholder > p:last-child { margin: 20px 0 0; color: var(--steel); font-size: 17px; line-height: 1.5; }
 
+.app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) { --orka-body: #f4f8f7; }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .brand span, .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .description { color: #b7c9d2; }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .ghost-button { color: #effcff; background: rgba(8,13,24,.7); }
 .app-shell:is([data-theme='cyberpunk'],[data-theme='vaporwave'],[data-theme='blueprint']) .recipe-facts { color: #effcff; background: color-mix(in srgb, var(--panel) 88%, transparent); border-color: var(--line); }
@@ -411,6 +414,7 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .app-shell { padding-top: 16px; padding-bottom: 18px; }
   .topbar { padding-bottom: 14px; }
   .brand-mark { width: 38px; height: 38px; }
+  .brand-mark .orka-logo { width: 31px; height: 34px; }
   .recipe-heading { margin-top: 18px; margin-bottom: 16px; }
   .recipe-heading h1 { font-size: clamp(36px,3.8vw,52px); }
   .description { margin-top: 9px; }
@@ -445,6 +449,7 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .topbar { min-height: 48px; padding: 0 54px 10px 0; }
   .brand-button { min-height: 40px; }
   .brand-mark { display: grid; width: 36px; height: 36px; border-radius: 10px; font-size: 17px; }
+  .brand-mark .orka-logo { width: 29px; height: 32px; }
   .settings-button { top: 12px; right: 16px; bottom: auto; left: auto; width: 42px; height: 42px; border-radius: 12px; }
   .settings-button svg { width: 22px; height: 22px; }
   .topbar-actions:not(:empty) { position: fixed; right: 12px; bottom: max(10px,env(safe-area-inset-bottom)); left: 12px; display: grid; width: auto; grid-auto-columns: 1fr; grid-auto-flow: column; justify-self: stretch; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 17px; background: color-mix(in srgb,var(--panel) 94%,transparent); box-shadow: 0 10px 34px rgba(30,38,40,.18); backdrop-filter: blur(16px); z-index: 18; }

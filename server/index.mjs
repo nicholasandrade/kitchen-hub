@@ -33,7 +33,7 @@ const getConfig = () => {
     configured: /^sk-[A-Za-z0-9_-]{20,}$/.test(apiKey),
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || local.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     commandModel: process.env.OPENAI_COMMAND_MODEL || local.OPENAI_COMMAND_MODEL || 'gpt-5-mini',
-    wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Kitchen Hub',
+    wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Orka',
     googleClientId: process.env.GOOGLE_CLIENT_ID || app.googleClientId || local.GOOGLE_CLIENT_ID || '',
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || local.GOOGLE_REDIRECT_URI || '',
   }
@@ -156,7 +156,7 @@ const calendarStatus = async (_request, response) => {
 const startGoogleOAuth = async (_request, response) => {
   const { googleClientId } = getConfig()
   if (!googleClientId) {
-    return sendJson(response, 503, { error: 'Google Sign-In is not configured for this KitchenHub build.' })
+    return sendJson(response, 503, { error: 'Google Sign-In is not configured for this Orka build.' })
   }
   const state = randomBytes(24).toString('base64url')
   const codeVerifier = randomBytes(64).toString('base64url')
@@ -188,7 +188,7 @@ const finishGoogleOAuth = async (request, response) => {
   googleOAuthStates.delete(state)
   if (oauthError || !code || !oauthState || oauthState.expiresAt < Date.now()) {
     response.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
-    response.end('<!doctype html><title>Google Calendar connection failed</title><p>KitchenHub could not connect Google Calendar. Close this window and try again from Settings.</p>')
+    response.end('<!doctype html><title>Google Calendar connection failed</title><p>Orka could not connect Google Calendar. Close this window and try again from Settings.</p>')
     return
   }
 
@@ -214,7 +214,7 @@ const finishGoogleOAuth = async (request, response) => {
     scope: token.scope || calendarScope,
   })
   response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
-  response.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Google Calendar connected</title><body style="font-family:system-ui;padding:40px;background:#f1f3f2;color:#272c2e"><h1>Google Calendar connected</h1><p>You can close this window and return to KitchenHub.</p><script>window.opener?.postMessage({type:"kitchen-hub-google-connected"}, "*"); setTimeout(() => window.close(), 900);</script></body>')
+  response.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Google Calendar connected</title><body style="font-family:system-ui;padding:40px;background:#f1f3f2;color:#272c2e"><h1>Google Calendar connected</h1><p>You can close this window and return to Orka.</p><script>window.opener?.postMessage({type:"kitchen-hub-google-connected"}, "*"); setTimeout(() => window.close(), 900);</script></body>')
 }
 
 const getGoogleAccessToken = async () => {
@@ -299,7 +299,7 @@ const openWakeEvents = (request, response) => {
 
 const publishWakeEvent = async (request, response) => {
   const body = JSON.parse((await readBody(request, 16 * 1024)).toString('utf8') || '{}')
-  const event = JSON.stringify({ phrase: String(body.phrase || 'Kitchen Hub'), at: Date.now() })
+  const event = JSON.stringify({ phrase: String(body.phrase || 'Orka'), at: Date.now() })
   for (const client of wakeClients) client.write(`event: wake\ndata: ${event}\n\n`)
   return sendJson(response, 200, { delivered: wakeClients.size })
 }
@@ -368,7 +368,7 @@ const createCommand = async (request, response) => {
     body: JSON.stringify({
       model: commandModel,
       instructions: [
-        'Convert a spoken Kitchen Hub request into exactly one safe application command.',
+        'Convert a spoken Orka request into exactly one safe application command.',
         'Use only the supplied action enum. Never invent ingredient names that were not spoken or present in context.',
         'Step numbers spoken by the user are one-based. Use null for every field irrelevant to the selected action.',
         'The response is a short confirmation of what the app will do. For unknown or ambiguous requests, choose unknown and ask one concise clarifying question.',
@@ -450,6 +450,6 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, '127.0.0.1', () => {
   const { configured } = getConfig()
-  console.log(`Kitchen Hub voice server listening on http://127.0.0.1:${port}`)
+  console.log(`Orka voice server listening on http://127.0.0.1:${port}`)
   console.log(configured ? 'OpenAI voice service configured.' : 'OPENAI_API_KEY is not set; health checks work but voice requests will return 503.')
 })

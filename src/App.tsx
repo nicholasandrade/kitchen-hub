@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { OrkaLogo } from './OrkaLogo'
 import { localRecipeRepository, type RecipeDraft } from './recipeRepository'
 import { localCookingSessionRepository } from './cookingSessionRepository'
 
@@ -36,7 +37,7 @@ type VoiceCommand = {
 }
 type ThemeId = 'architectural' | 'warm' | 'mineral' | 'cyberpunk' | 'retro' | 'terracotta' | 'vaporwave' | 'seventies' | 'candy' | 'blueprint' | 'tavern'
 
-const DEFAULT_WAKE_PHRASE = 'Kitchen Hub'
+const DEFAULT_WAKE_PHRASE = 'Orka'
 const WAKE_WINDOW_MS = 7000
 const monotonicNow = () => performance.now()
 
@@ -958,7 +959,7 @@ function App() {
     }
     if (!window.MediaRecorder) {
       setNotice('Voice recording is unavailable')
-      const response = 'This browser cannot record microphone audio. Open Kitchen Hub in current Chrome or Edge.'
+      const response = 'This browser cannot record microphone audio. Open Orka in current Chrome or Edge.'
       setTranscript(response)
       addVoiceMessage('assistant', response)
       return
@@ -1269,9 +1270,9 @@ function App() {
   return (
     <main className="app-shell" data-theme={theme} data-view={activeView}>
       <header className="topbar">
-        <button className="brand brand-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }} aria-label="Go to Hub home">
+        <button className="brand brand-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }} aria-label="Go to Orka home">
           <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 48 48"><path d="M15 12v24M33 12v24M15 24h18" /><circle cx="24" cy="24" r="3.5" /></svg>
+            <OrkaLogo title="" />
           </span>
         </button>
         <div className="topbar-actions">
@@ -1297,7 +1298,7 @@ function App() {
             <div className="library-heading">
               <div className="settings-heading-copy">
                 {settingsPage !== 'root' ? <button type="button" className="settings-back" onClick={() => setSettingsPage('root')} aria-label="Back to settings">←</button> : null}
-                <div><p className="eyebrow">{settingsPage === 'root' ? 'Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
+                <div><p className="eyebrow">{settingsPage === 'root' ? 'Orka' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
               </div>
               <button type="button" className="library-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button>
             </div>
@@ -1330,13 +1331,13 @@ function App() {
                   <span aria-hidden="true" />
                   <div>
                     <strong>{openAIStatus === 'loading' ? 'Checking connection' : openAIStatus === 'connected' ? 'OpenAI connected' : openAIStatus === 'saving' ? 'Verifying key' : openAIStatus === 'error' ? 'Connection needs attention' : 'OpenAI setup required'}</strong>
-                    <p>{openAIStatus === 'connected' ? 'Voice transcription and command understanding are ready.' : openAIStatus === 'loading' ? 'Contacting the local Kitchen Hub service…' : openAIStatus === 'saving' ? 'The local service is securely checking this key with OpenAI…' : openAIMessage || 'Add an API key to enable production voice control.'}</p>
+                    <p>{openAIStatus === 'connected' ? 'Voice transcription and command understanding are ready.' : openAIStatus === 'loading' ? 'Contacting the local Orka service…' : openAIStatus === 'saving' ? 'The local service is securely checking this key with OpenAI…' : openAIMessage || 'Add an API key to enable production voice control.'}</p>
                   </div>
                 </div>
                 <form className="connection-form" onSubmit={(event) => { event.preventDefault(); void saveOpenAIKey() }}>
                   <label htmlFor="openai-api-key">OpenAI API key</label>
                   <input id="openai-api-key" type="password" value={openAIKey} onChange={(event) => setOpenAIKey(event.target.value)} placeholder={openAIStatus === 'connected' ? 'Enter a new key to replace the current one' : 'sk-…'} autoComplete="off" spellCheck={false} />
-                  <small>The key is saved only in this Hub’s private local data file. It is never stored in the browser.</small>
+                  <small>The key is saved only in Orka’s private local data file. It is never stored in the browser.</small>
                   <button type="submit" disabled={!openAIKey.trim() || openAIStatus === 'saving'}>{openAIStatus === 'saving' ? 'Verifying…' : openAIStatus === 'connected' ? 'Replace key' : 'Connect OpenAI'}</button>
                 </form>
                 <form className="connection-form wake-phrase-form" onSubmit={(event) => { event.preventDefault(); void saveWakePhrase() }}>
@@ -1344,7 +1345,7 @@ function App() {
                     <div><label htmlFor="wake-phrase">Wake phrase</label><p>Current phrase: “{wakePhrase}”</p></div>
                     <span className={`wake-save-state ${wakePhraseStatus}`}>{wakePhraseStatus === 'saving' ? 'Updating…' : wakePhraseStatus === 'saved' ? 'Updated' : wakePhraseStatus === 'error' ? 'Try again' : 'Local'}</span>
                   </div>
-                  <input id="wake-phrase" type="text" value={wakePhraseDraft} onChange={(event) => { setWakePhraseDraft(event.target.value); setWakePhraseStatus('idle'); setWakePhraseMessage('') }} maxLength={32} placeholder="Kitchen Hub" autoComplete="off" spellCheck={false} />
+                  <input id="wake-phrase" type="text" value={wakePhraseDraft} onChange={(event) => { setWakePhraseDraft(event.target.value); setWakePhraseStatus('idle'); setWakePhraseMessage('') }} maxLength={32} placeholder="Orka" autoComplete="off" spellCheck={false} />
                   <small>Use two to four distinctive words that are easy to pronounce. The local wake model reloads immediately.</small>
                   {wakePhraseMessage ? <p className={`connection-feedback ${wakePhraseStatus}`}>{wakePhraseMessage}</p> : null}
                   <button type="submit" disabled={wakePhraseDraft.trim().length < 2 || wakePhraseDraft.trim() === wakePhrase || wakePhraseStatus === 'saving'}>{wakePhraseStatus === 'saving' ? 'Updating…' : 'Change wake phrase'}</button>
@@ -1354,7 +1355,7 @@ function App() {
                     <span aria-hidden="true" />
                     <div>
                       <strong id="google-calendar-settings-title">{calendarConnection === 'connected' ? 'Google Calendar connected' : calendarConnection === 'connecting' ? 'Connecting Google Calendar' : calendarConnection === 'ready' ? 'Google Calendar' : calendarConnection === 'loading' ? 'Checking Google Calendar' : calendarConnection === 'error' ? 'Calendar needs attention' : 'Google Sign-In unavailable'}</strong>
-                      <p>{calendarConnection === 'connected' ? 'Today’s events and kitchen reminders are available on Home.' : calendarConnection === 'setup' ? 'This development build does not have KitchenHub’s public Google client ID yet.' : calendarMessage || 'Sign in once to grant read-only calendar access.'}</p>
+                      <p>{calendarConnection === 'connected' ? 'Today’s events and kitchen reminders are available on Home.' : calendarConnection === 'setup' ? 'This development build does not have Orka’s public Google client ID yet.' : calendarMessage || 'Sign in once to grant read-only calendar access.'}</p>
                     </div>
                   </div>
                   {calendarConnection === 'ready' || calendarConnection === 'connecting' ? <button className="calendar-connect-button" type="button" disabled={calendarConnection === 'connecting'} onClick={connectGoogleCalendar}>{calendarConnection === 'connecting' ? 'Waiting for Google…' : 'Sign in with Google'}</button> : null}
@@ -1387,7 +1388,7 @@ function App() {
       ) : null}
 
       {activeView === 'home' ? (
-        <section className="hub-home" aria-label="Hub home">
+        <section className="hub-home" aria-label="Orka home">
           <div className="hub-layout">
             <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
               <span className="hub-card-icon" aria-hidden="true">
@@ -1409,7 +1410,7 @@ function App() {
                 {calendarConnection === 'loading' || calendarLoadState === 'loading' ? (
                   <div className="calendar-skeleton" aria-label="Loading today’s calendar"><i /><i /><i /><i /></div>
                 ) : calendarConnection !== 'connected' ? (
-                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">31</span><strong>{calendarConnection === 'setup' ? 'Google Sign-In is not ready in this build.' : 'Bring your day into the kitchen.'}</strong><p>{calendarConnection === 'setup' ? 'Once KitchenHub’s public client ID is added, this becomes a one-tap sign-in.' : 'Sign in once to see today’s schedule and prep reminders.'}</p>{calendarConnection === 'ready' ? <button type="button" onClick={connectGoogleCalendar}>Sign in with Google</button> : null}</div>
+                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">31</span><strong>{calendarConnection === 'setup' ? 'Google Sign-In is not ready in this build.' : 'Bring your day into the kitchen.'}</strong><p>{calendarConnection === 'setup' ? 'Once Orka’s public client ID is added, this becomes a one-tap sign-in.' : 'Sign in once to see today’s schedule and prep reminders.'}</p>{calendarConnection === 'ready' ? <button type="button" onClick={connectGoogleCalendar}>Sign in with Google</button> : null}</div>
                 ) : calendarLoadState === 'error' ? (
                   <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">!</span><strong>Today’s schedule didn’t load.</strong><p>{calendarMessage}</p><button type="button" onClick={() => void loadTodayCalendar()}>Try again</button></div>
                 ) : calendarLoadState === 'empty' ? (
@@ -1598,7 +1599,7 @@ function App() {
         <section className={`conversation-card voice-${voicePhase} ${alwaysListening ? 'is-listening' : ''} ${pendingEdit ? 'needs-answer' : ''} ${voicePanelNeedsRoom ? 'has-expanded-content' : ''}`} aria-label="Voice conversation">
           <div className="conversation-log" ref={conversationRef} aria-live="polite">
             {voiceMessages.map((message) => (
-              <div className={`voice-message ${message.role}`} key={message.id} aria-label={message.role === 'user' ? 'You said' : 'Kitchen Hub response'}>
+              <div className={`voice-message ${message.role}`} key={message.id} aria-label={message.role === 'user' ? 'You said' : 'Orka response'}>
                 <p>{message.role === 'user' ? `“${message.text}”` : message.text}</p>
               </div>
             ))}

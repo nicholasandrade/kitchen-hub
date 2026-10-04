@@ -2,7 +2,8 @@ param(
   [string]$AppVersion = '',
   [string]$NodeVersion = '22.23.3',
   [string]$OutputDirectory = '',
-  [string]$GoogleClientId = $env:GOOGLE_CLIENT_ID
+  [string]$GoogleClientId = $env:GOOGLE_CLIENT_ID,
+  [string]$GoogleClientSecret = $env:GOOGLE_CLIENT_SECRET
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,7 +97,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $appStage 'runtime'), (Join
 Copy-Item -LiteralPath (Join-Path $repoRoot 'dist') -Destination (Join-Path $appStage 'dist') -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot 'server\index.mjs') -Destination (Join-Path $appStage 'server\index.mjs')
 Copy-Item -LiteralPath (Join-Path $repoRoot '.env.example') -Destination (Join-Path $appStage '.env.example')
-@{ googleClientId = $GoogleClientId } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Encoding utf8
+@{ googleClientId = $GoogleClientId; googleClientSecret = $GoogleClientSecret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $nodeSource 'node.exe') -Destination (Join-Path $appStage 'runtime\node.exe')
 Copy-Item -LiteralPath (Join-Path $nodeSource 'LICENSE') -Destination (Join-Path $appStage 'runtime\NODE-LICENSE.txt')
 

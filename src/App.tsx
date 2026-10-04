@@ -1354,7 +1354,7 @@ function App() {
                     <span aria-hidden="true" />
                     <div>
                       <strong id="google-calendar-settings-title">{calendarConnection === 'connected' ? 'Google Calendar connected' : calendarConnection === 'connecting' ? 'Connecting Google Calendar' : calendarConnection === 'ready' ? 'Google Calendar' : calendarConnection === 'loading' ? 'Checking Google Calendar' : calendarConnection === 'error' ? 'Calendar needs attention' : 'Google Sign-In unavailable'}</strong>
-                      <p>{calendarConnection === 'connected' ? 'Today’s events and kitchen reminders are available on Home.' : calendarConnection === 'setup' ? 'This development build does not have Orka’s public Google client ID yet.' : calendarMessage || 'Sign in once to grant read-only calendar access.'}</p>
+                      <p>{calendarConnection === 'connected' ? 'Today’s events and kitchen reminders are available on Home.' : calendarConnection === 'setup' ? 'This build does not have complete Google OAuth credentials yet.' : calendarMessage || 'Sign in once to grant read-only calendar access.'}</p>
                     </div>
                   </div>
                   {calendarConnection === 'ready' || calendarConnection === 'connecting' ? <button className="calendar-connect-button" type="button" disabled={calendarConnection === 'connecting'} onClick={connectGoogleCalendar}>{calendarConnection === 'connecting' ? 'Waiting for Google…' : 'Sign in with Google'}</button> : null}
@@ -1409,7 +1409,7 @@ function App() {
                 {calendarConnection === 'loading' || calendarLoadState === 'loading' ? (
                   <div className="calendar-skeleton" aria-label="Loading today’s calendar"><i /><i /><i /><i /></div>
                 ) : calendarConnection !== 'connected' ? (
-                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">31</span><strong>{calendarConnection === 'setup' ? 'Google Sign-In is not ready in this build.' : 'Bring your day into the kitchen.'}</strong><p>{calendarConnection === 'setup' ? 'Once Orka’s public client ID is added, this becomes a one-tap sign-in.' : 'Sign in once to see today’s schedule and prep reminders.'}</p>{calendarConnection === 'ready' ? <button type="button" onClick={connectGoogleCalendar}>Sign in with Google</button> : null}</div>
+                  <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">31</span><strong>{calendarConnection === 'setup' ? 'Google Sign-In is not ready in this build.' : 'Bring your day into the kitchen.'}</strong><p>{calendarConnection === 'setup' ? 'Add Hub’s Google OAuth credentials to enable sign-in.' : 'Sign in once to see today’s schedule and prep reminders.'}</p>{calendarConnection === 'ready' ? <button type="button" onClick={connectGoogleCalendar}>Sign in with Google</button> : null}</div>
                 ) : calendarLoadState === 'error' ? (
                   <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">!</span><strong>Today’s schedule didn’t load.</strong><p>{calendarMessage}</p><button type="button" onClick={() => void loadTodayCalendar()}>Try again</button></div>
                 ) : calendarLoadState === 'empty' ? (

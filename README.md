@@ -63,10 +63,10 @@ The project owner performs this developer setup once for every KitchenHub instal
 2. Enable the **Google Calendar API**.
 3. Configure the Google Auth consent screen. For a personal Google account, use an External audience and add your account as a test user while the app remains in testing.
 4. Create an OAuth client with application type **Desktop app**.
-5. Set the repository Actions variable `GOOGLE_CLIENT_ID` to the resulting public client ID. Local developers can instead set `GOOGLE_CLIENT_ID` in their ignored `.env` file.
-6. Build the installer. The build embeds the public client ID in `app-config.json`.
+5. Download the Desktop client credentials. Set the repository Actions variable `GOOGLE_CLIENT_ID` and Actions secret `GOOGLE_CLIENT_SECRET` to those values. Local developers can instead set both values in their ignored `.env` file.
+6. Build the installer. The build embeds the Desktop OAuth credentials in `app-config.json`.
 
-The app uses Authorization Code with PKCE and the desktop loopback return address `http://127.0.0.1:8787`. No Google client secret is collected or shipped. Calendar tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades.
+The app uses Authorization Code with PKCE and the desktop loopback return address `http://127.0.0.1:8787`. Google requires the client secret issued with this Desktop credential during token exchange; as with all installed applications, that value cannot be treated as confidential. Calendar tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades.
 
 ## Build the Windows installer
 

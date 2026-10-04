@@ -35,6 +35,7 @@ const getConfig = () => {
     commandModel: process.env.OPENAI_COMMAND_MODEL || local.OPENAI_COMMAND_MODEL || 'gpt-5-mini',
     wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Orka',
     googleClientId: process.env.GOOGLE_CLIENT_ID || app.googleClientId || local.GOOGLE_CLIENT_ID || '',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || app.googleClientSecret || local.GOOGLE_CLIENT_SECRET || '',
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || local.GOOGLE_REDIRECT_URI || '',
   }
 }
@@ -144,19 +145,19 @@ const saveGoogleToken = async (token) => {
 }
 
 const calendarStatus = async (_request, response) => {
-  const { googleClientId } = getConfig()
+  const { googleClientId, googleClientSecret } = getConfig()
   const token = await readGoogleToken()
   return sendJson(response, 200, {
-    configured: Boolean(googleClientId),
+    configured: Boolean(googleClientId && googleClientSecret),
     connected: Boolean(token?.refresh_token || (token?.access_token && token?.expires_at > Date.now())),
     redirectUri: googleRedirectUri(),
   })
 }
 
 const startGoogleOAuth = async (_request, response) => {
-  const { googleClientId } = getConfig()
-  if (!googleClientId) {
-    return sendJson(response, 503, { error: 'Google Sign-In is not configured for this Orka build.' })
+  const { googleClientId, googleClientSecret } = getConfig()
+  if (!googleClientId || !googleClientSecret) {
+    return sendJson(response, 503, { error: 'Google Sign-In credentials are incomplete for this Hub build.' })
   }
   const state = randomBytes(24).toString('base64url')
   const codeVerifier = randomBytes(64).toString('base64url')
@@ -192,12 +193,13 @@ const finishGoogleOAuth = async (request, response) => {
     return
   }
 
-  const { googleClientId } = getConfig()
+  const { googleClientId, googleClientSecret } = getConfig()
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: googleClientId,
+      client_secret: googleClientSecret,
       code,
       code_verifier: oauthState.codeVerifier,
       grant_type: 'authorization_code',
@@ -222,12 +224,13 @@ const getGoogleAccessToken = async () => {
   if (!token) throw Object.assign(new Error('Google Calendar is not connected.'), { status: 401 })
   if (token.access_token && Number(token.expires_at) > Date.now() + 60_000) return token.access_token
   if (!token.refresh_token) throw Object.assign(new Error('Google Calendar needs to be connected again.'), { status: 401 })
-  const { googleClientId } = getConfig()
+  const { googleClientId, googleClientSecret } = getConfig()
   const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: googleClientId,
+      client_secret: googleClientSecret,
       refresh_token: token.refresh_token,
       grant_type: 'refresh_token',
     }),

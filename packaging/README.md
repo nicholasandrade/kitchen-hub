@@ -14,6 +14,7 @@ The Windows package preserves the existing architecture:
 ```text
 %LOCALAPPDATA%\Programs\KitchenHub\
   app\
+    app-config.json
     dist\
     server\index.mjs
     runtime\node.exe
@@ -38,7 +39,7 @@ Requirements are Node/npm, Python 3.11, and Inno Setup 6. Run:
 .\packaging\build-windows.ps1
 ```
 
-Optional parameters are `-AppVersion`, `-NodeVersion`, and `-OutputDirectory`. The default Node version is pinned and its zip is checked against Node’s official `SHASUMS256.txt` before use. Set `INNO_SETUP_COMPILER` if `ISCC.exe` is installed in a nonstandard directory.
+Optional parameters are `-AppVersion`, `-NodeVersion`, `-OutputDirectory`, and `-GoogleClientId`. The build also accepts the public Google Desktop OAuth client ID from the `GOOGLE_CLIENT_ID` environment variable and embeds it in `app-config.json`; it does not require or package a client secret. The default Node version is pinned and its zip is checked against Node’s official `SHASUMS256.txt` before use. Set `INNO_SETUP_COMPILER` if `ISCC.exe` is installed in a nonstandard directory.
 
 The output is `artifacts\KitchenHub-Setup-<version>.exe`. Build intermediates stay under `build\windows`; both paths are ignored by Git.
 

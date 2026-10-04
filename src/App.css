@@ -227,8 +227,6 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .connection-status.calendar-connected > span { background: var(--teal-dark); box-shadow: 0 0 0 5px color-mix(in srgb,var(--teal) 20%,transparent); }
 .connection-status.calendar-error > span { background: #b64f3d; }
 .connection-status.calendar-loading > span, .connection-status.calendar-connecting > span { background: var(--teal); animation: pulse 1.3s ease-in-out infinite; }
-.oauth-helper { margin: 0; color: var(--steel); font-size: 12px; line-height: 1.5; }
-.oauth-helper code { overflow-wrap: anywhere; color: var(--graphite); font-family: ui-monospace,'Cascadia Code',monospace; }
 .calendar-connect-button, .calendar-connection-actions button { min-height: 50px; padding: 0 20px; border: 0; border-radius: 11px; color: #fff; background: var(--teal-dark); cursor: pointer; font-weight: 850; }
 .calendar-connect-button { align-self: flex-start; }
 .calendar-connect-button:disabled { opacity: .5; cursor: default; }

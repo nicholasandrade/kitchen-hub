@@ -13,7 +13,7 @@ After installation:
 1. Launch **Kitchen Hub**.
 2. Allow microphone access in Edge once.
 3. Open **Settings → Connections** and enter an OpenAI API key.
-4. Connect Google Calendar if you want today’s schedule and prep reminders on Home.
+4. Select **Sign in with Google** if you want today’s schedule and prep reminders on Home.
 5. Say “Kitchen Hub,” followed by a command.
 
 The API key, logs, wake phrase, and dedicated Edge profile are stored under `%LOCALAPPDATA%\KitchenHub\data`. Upgrades preserve this directory. See [SURFACE_SETUP.md](./SURFACE_SETUP.md) for the complete tablet checklist.
@@ -53,20 +53,20 @@ This HTTP preview is intended for visual iteration. Browsers generally require H
 
 The app creates or updates `.env` only when an API key or wake phrase is saved in Settings. This file is ignored by Git. Never place the API key in a `VITE_*` variable.
 
-## Connect Google Calendar
+## Google Calendar
 
-Kitchen Hub reads the primary Google Calendar and keeps OAuth credentials and refresh tokens on the local device. Calendar access uses the read-only scope; Kitchen Hub cannot create, edit, or delete events.
+Kitchen Hub reads the primary Google Calendar and keeps the refresh token on the local device. Calendar access uses the read-only scope; Kitchen Hub cannot create, edit, or delete events. Installed users only select **Sign in with Google** and approve access once.
 
-One-time Google Cloud setup:
+The project owner performs this developer setup once for every KitchenHub installation:
 
 1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
 2. Enable the **Google Calendar API**.
 3. Configure the Google Auth consent screen. For a personal Google account, use an External audience and add your account as a test user while the app remains in testing.
 4. Create an OAuth client with application type **Desktop app**.
-5. In Kitchen Hub, open **Settings → Connections**, paste the client ID and client secret, and choose **Save Google credentials**.
-6. Choose **Connect Google account** and approve read-only calendar access.
+5. Set the repository Actions variable `GOOGLE_CLIENT_ID` to the resulting public client ID. Local developers can instead set `GOOGLE_CLIENT_ID` in their ignored `.env` file.
+6. Build the installer. The build embeds the public client ID in `app-config.json`.
 
-The installed app uses the desktop loopback return address `http://127.0.0.1:8787`. Google Calendar tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades.
+The app uses Authorization Code with PKCE and the desktop loopback return address `http://127.0.0.1:8787`. No Google client secret is collected or shipped. Calendar tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades.
 
 ## Build the Windows installer
 
@@ -85,7 +85,6 @@ Tagged GitHub builds are automated. Push a version tag such as `v0.1.0`; the wor
 - `GET /api/voice/health` — local service, credentials, models, and wake phrase
 - `PUT /api/settings/openai-key` — validate and save the local API key
 - `PUT /api/settings/wake-phrase` — rebuild and activate the local wake phrase
-- `PUT /api/settings/google-calendar` — save local Google OAuth client credentials
 - `GET /api/calendar/status` — report local Google Calendar setup and connection state
 - `GET /api/calendar/oauth/start` — begin Google’s desktop OAuth flow
 - `GET /api/calendar/today` — fetch the primary calendar’s current-day events

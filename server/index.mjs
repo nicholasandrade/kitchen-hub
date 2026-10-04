@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -9,6 +9,11 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const dist = join(root, 'dist')
 const dataDirectory = process.env.KITCHEN_HUB_DATA_DIR || root
 const envPath = join(dataDirectory, '.env')
+const appConfigPath = join(root, 'app-config.json')
+const readAppConfig = () => {
+  if (!existsSync(appConfigPath)) return {}
+  try { return JSON.parse(readFileSync(appConfigPath, 'utf8')) } catch { return {} }
+}
 const readLocalEnv = () => {
   const values = {}
   if (!existsSync(envPath)) return values
@@ -21,6 +26,7 @@ const readLocalEnv = () => {
 }
 const getConfig = () => {
   const local = readLocalEnv()
+  const app = readAppConfig()
   const apiKey = process.env.OPENAI_API_KEY || local.OPENAI_API_KEY || ''
   return {
     apiKey,
@@ -28,8 +34,7 @@ const getConfig = () => {
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || local.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     commandModel: process.env.OPENAI_COMMAND_MODEL || local.OPENAI_COMMAND_MODEL || 'gpt-5-mini',
     wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Kitchen Hub',
-    googleClientId: process.env.GOOGLE_CLIENT_ID || local.GOOGLE_CLIENT_ID || '',
-    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || local.GOOGLE_CLIENT_SECRET || '',
+    googleClientId: process.env.GOOGLE_CLIENT_ID || app.googleClientId || local.GOOGLE_CLIENT_ID || '',
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || local.GOOGLE_REDIRECT_URI || '',
   }
 }
@@ -139,37 +144,24 @@ const saveGoogleToken = async (token) => {
 }
 
 const calendarStatus = async (_request, response) => {
-  const { googleClientId, googleClientSecret } = getConfig()
+  const { googleClientId } = getConfig()
   const token = await readGoogleToken()
   return sendJson(response, 200, {
-    configured: Boolean(googleClientId && googleClientSecret),
+    configured: Boolean(googleClientId),
     connected: Boolean(token?.refresh_token || (token?.access_token && token?.expires_at > Date.now())),
     redirectUri: googleRedirectUri(),
   })
 }
 
-const saveGoogleSettings = async (request, response) => {
-  const body = JSON.parse((await readBody(request, 32 * 1024)).toString('utf8') || '{}')
-  const clientId = String(body.clientId || '').trim()
-  const clientSecret = String(body.clientSecret || '').trim()
-  if (!/^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/.test(clientId)) {
-    return sendJson(response, 400, { error: 'Enter a valid Google OAuth client ID.' })
-  }
-  if (clientSecret.length < 8 || clientSecret.length > 256) {
-    return sendJson(response, 400, { error: 'Enter the client secret supplied with the Google OAuth client.' })
-  }
-  await saveLocalEnvValue('GOOGLE_CLIENT_ID', clientId)
-  await saveLocalEnvValue('GOOGLE_CLIENT_SECRET', clientSecret)
-  return sendJson(response, 200, { configured: true, redirectUri: googleRedirectUri() })
-}
-
 const startGoogleOAuth = async (_request, response) => {
-  const { googleClientId, googleClientSecret } = getConfig()
-  if (!googleClientId || !googleClientSecret) {
-    return sendJson(response, 400, { error: 'Save the Google OAuth client details in Settings first.' })
+  const { googleClientId } = getConfig()
+  if (!googleClientId) {
+    return sendJson(response, 503, { error: 'Google Sign-In is not configured for this KitchenHub build.' })
   }
   const state = randomBytes(24).toString('base64url')
-  googleOAuthStates.set(state, Date.now() + 10 * 60 * 1000)
+  const codeVerifier = randomBytes(64).toString('base64url')
+  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url')
+  googleOAuthStates.set(state, { expiresAt: Date.now() + 10 * 60 * 1000, codeVerifier })
   const authorization = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   authorization.search = new URLSearchParams({
     client_id: googleClientId,
@@ -180,6 +172,8 @@ const startGoogleOAuth = async (_request, response) => {
     include_granted_scopes: 'true',
     prompt: 'consent',
     state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   }).toString()
   response.writeHead(302, { Location: authorization.toString(), 'Cache-Control': 'no-store' })
   response.end()
@@ -190,22 +184,22 @@ const finishGoogleOAuth = async (request, response) => {
   const state = requestUrl.searchParams.get('state') || ''
   const code = requestUrl.searchParams.get('code') || ''
   const oauthError = requestUrl.searchParams.get('error')
-  const expiresAt = googleOAuthStates.get(state)
+  const oauthState = googleOAuthStates.get(state)
   googleOAuthStates.delete(state)
-  if (oauthError || !code || !expiresAt || expiresAt < Date.now()) {
+  if (oauthError || !code || !oauthState || oauthState.expiresAt < Date.now()) {
     response.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
     response.end('<!doctype html><title>Google Calendar connection failed</title><p>KitchenHub could not connect Google Calendar. Close this window and try again from Settings.</p>')
     return
   }
 
-  const { googleClientId, googleClientSecret } = getConfig()
+  const { googleClientId } = getConfig()
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: googleClientId,
-      client_secret: googleClientSecret,
       code,
+      code_verifier: oauthState.codeVerifier,
       grant_type: 'authorization_code',
       redirect_uri: googleRedirectUri(),
     }),
@@ -228,13 +222,12 @@ const getGoogleAccessToken = async () => {
   if (!token) throw Object.assign(new Error('Google Calendar is not connected.'), { status: 401 })
   if (token.access_token && Number(token.expires_at) > Date.now() + 60_000) return token.access_token
   if (!token.refresh_token) throw Object.assign(new Error('Google Calendar needs to be connected again.'), { status: 401 })
-  const { googleClientId, googleClientSecret } = getConfig()
+  const { googleClientId } = getConfig()
   const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: googleClientId,
-      client_secret: googleClientSecret,
       refresh_token: token.refresh_token,
       grant_type: 'refresh_token',
     }),
@@ -425,7 +418,6 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'PUT' && request.url === '/api/settings/openai-key') return await saveOpenAIKey(request, response)
     if (request.method === 'PUT' && request.url === '/api/settings/wake-phrase') return await saveWakePhrase(request, response)
-    if (request.method === 'PUT' && request.url === '/api/settings/google-calendar') return await saveGoogleSettings(request, response)
     if (request.method === 'GET' && request.url === '/api/calendar/status') return await calendarStatus(request, response)
     if (request.method === 'GET' && request.url === '/api/calendar/oauth/start') return await startGoogleOAuth(request, response)
     if (request.method === 'GET' && request.url?.startsWith('/api/calendar/oauth/callback')) return await finishGoogleOAuth(request, response)

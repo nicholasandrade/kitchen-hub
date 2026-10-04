@@ -11,7 +11,7 @@ Kitchen Hub now installs as a self-contained per-user Windows application. A fre
 5. Launch Kitchen Hub from the installer or Start menu.
 6. When Edge asks, allow microphone access for `http://127.0.0.1:8787`.
 7. Select the gear, open **Connections**, enter the OpenAI API key, and choose **Connect OpenAI**.
-8. To show the current day on Home, create a Google Desktop OAuth client as described in the README, save its client ID and secret under **Connections**, then choose **Connect Google account**.
+8. To show the current day on Home, choose **Sign in with Google**, select your account, and approve read-only Calendar access.
 9. Say “Kitchen Hub, next step” to verify the complete voice path.
 
 The unsigned test installer may display a Microsoft Defender SmartScreen warning. Use **More info → Run anyway** for an installer downloaded from this repository’s Releases page.

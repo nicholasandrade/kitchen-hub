@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { localRecipeRepository, type RecipeDraft } from './recipeRepository'
 import { localCookingSessionRepository } from './cookingSessionRepository'
+import { WeatherCard } from './WeatherCard'
+import { demoWeather } from './weatherData'
+import { AttentionLayer, type AttentionReminder } from './components/AttentionLayer'
+import { LiveDock } from './components/LiveDock'
+import { TimerView } from './components/TimerView'
+import { formatTimerDuration, timerService } from './timers/timerService'
 
 export type Ingredient = { name: string; amount: number; unit: string; note?: string; steps: number[] }
 export type Recipe = {
@@ -25,12 +31,15 @@ type VoiceCommand = {
     'set_servings' | 'adjust_servings' | 'ingredient_quantity' |
     'check_ingredient' | 'uncheck_ingredient' | 'scroll_ingredients' |
     'remove_ingredient' | 'save_changes' | 'discard_changes' |
-    'pause_listening' | 'unknown'
+    'pause_listening' | 'create_timer' | 'timer_remaining' |
+    'pause_timer' | 'resume_timer' | 'add_timer_time' | 'cancel_timer' | 'unknown'
   step: number | null
   servings: number | null
   delta: number | null
   ingredient: string | null
   direction: 'up' | 'down' | null
+  duration_seconds: number | null
+  timer_label: string | null
   response: string
   confidence: number
 }
@@ -197,7 +206,18 @@ function formatAmount(amount: number) {
   return amount.toFixed(1).replace(/\.0$/, '')
 }
 
-const formatTimer = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+const parseTimerDurationSeconds = (command: string) => {
+  const match = command.match(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight)\s*(hours?|minutes?|mins?|seconds?|secs?)\b/i)
+  if (!match) return null
+  const amount = parseSpokenNumber(match[1])
+  if (!amount) return null
+  if (/^hours?/i.test(match[2])) return Math.round(amount * 3600)
+  if (/^(seconds?|secs?)/i.test(match[2])) return Math.round(amount)
+  return Math.round(amount * 60)
+}
+
+const parseTimerLabel = (command: string) => command.match(/\bset\s+(?:a\s+)?(.+?)\s+timer\b/i)?.[1]?.trim() || 'Timer'
+
 
 const createFixtureDraft = (prompt: string): RecipeDraft => {
   const vegetarian = /vegetarian|meatless|tofu|beans/i.test(prompt)
@@ -251,12 +271,12 @@ function App() {
   const [checked, setChecked] = useState<Set<number>>(() => new Set(restoredSession?.checkedIngredients ?? []))
   const [alwaysListening, setAlwaysListening] = useState(false)
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('off')
-  const [micLevel, setMicLevel] = useState(0)
-  const [, setTranscript] = useState('Tap the microphone, then speak naturally.')
+  const [, setTranscript] = useState('Listening starts automatically while Hub is open.')
   const [, setNotice] = useState('Ready when you are')
   const [voiceMessages, setVoiceMessages] = useState<VoiceMessage[]>([
     { id: 0, role: 'assistant', text: READY_VOICE_MESSAGE },
   ])
+  const [voiceThreadOpen, setVoiceThreadOpen] = useState(false)
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null)
   const [hasDraftChanges, setHasDraftChanges] = useState(() => restoredSession?.hasDraftChanges ?? false)
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -268,9 +288,6 @@ function App() {
   const [labDraft, setLabDraft] = useState<RecipeDraft | null>(() => localRecipeRepository.loadDraft())
   const [labPrompt, setLabPrompt] = useState('')
   const [labStatus, setLabStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle')
-  const [timerDuration, setTimerDuration] = useState(10 * 60)
-  const [timerRemaining, setTimerRemaining] = useState(10 * 60)
-  const [timerRunning, setTimerRunning] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsPage, setSettingsPage] = useState<'root' | 'appearance' | 'connections'>('root')
   const [openAIKey, setOpenAIKey] = useState('')
@@ -316,6 +333,15 @@ function App() {
   const currentInstruction = workingRecipe.steps[step]
   const isLongStep = currentInstruction.length > 115
   const currentVoiceMessage = voiceMessages[voiceMessages.length - 1]
+  const voiceStatusLabel = voicePhase === 'error'
+    ? 'Voice unavailable'
+    : voicePhase === 'processing'
+      ? 'Understanding'
+      : voicePhase === 'hearing'
+        ? 'Listening'
+        : alwaysListening
+          ? `Listening for “${wakePhrase}”`
+          : 'Starting voice'
   const voicePanelNeedsRoom = Boolean(pendingEdit)
     || voicePhase === 'error'
     || (currentVoiceMessage?.text !== READY_VOICE_MESSAGE && currentVoiceMessage?.text.length > 72)
@@ -335,6 +361,11 @@ function App() {
   const reminderEvent = useMemo(() => calendarEvents.find((event) =>
     /\b(remind|pull|take|defrost|thaw|marinate|prep|soak|move|buy|pick up)\b/i.test(`${event.title} ${event.description}`),
   ), [calendarEvents])
+  const attentionReminder = useMemo<AttentionReminder | null>(() => reminderEvent ? {
+    id: reminderEvent.id,
+    title: reminderEvent.title,
+    dueAt: reminderEvent.allDay ? new Date().setHours(0, 0, 0, 0) : new Date(reminderEvent.start).getTime(),
+  } : null, [reminderEvent])
 
   const formatCalendarTime = (event: CalendarEvent) => {
     if (event.allDay) return 'All day'
@@ -374,34 +405,24 @@ function App() {
   }, [baseRecipe, checked, hasActiveRecipe, hasDraftChanges, servings, step, workingRecipe])
 
   useEffect(() => {
-    if (!timerRunning) return
-    const interval = window.setInterval(() => {
-      setTimerRemaining((current) => {
-        if (current <= 1) {
-          setTimerRunning(false)
-          return 0
-        }
-        return current - 1
-      })
-    }, 1000)
-    return () => window.clearInterval(interval)
-  }, [timerRunning])
-
-  useEffect(() => {
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: 'smooth' })
-  }, [voiceMessages])
+  }, [voiceMessages, voiceThreadOpen])
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [activeView])
 
   const addVoiceMessage = (role: VoiceMessage['role'], text: string) => {
-    setVoiceMessages([{ id: voiceMessageIdRef.current++, role, text }])
+    setVoiceMessages((current) => [
+      ...current,
+      { id: voiceMessageIdRef.current++, role, text },
+    ].slice(-24))
   }
 
   const showVoiceStatus = (text: string) => {
     setTranscript(text)
     addVoiceMessage('assistant', text)
+    if (text.trim().endsWith('?') || text.length > 180) setVoiceThreadOpen(true)
   }
 
   const goToStep = (nextStep: number) => {
@@ -421,19 +442,6 @@ function App() {
     wakeSamplesRef.current = []
     void audioContextRef.current?.close()
     audioContextRef.current = null
-    setMicLevel(0)
-  }
-
-  const pauseHandsFree = () => {
-    shouldListenRef.current = false
-    wakeWindowUntilRef.current = 0
-    if (wakeWindowTimerRef.current) clearTimeout(wakeWindowTimerRef.current)
-    wakeWindowTimerRef.current = null
-    setAlwaysListening(false)
-    setVoicePhase('off')
-    stopMicrophoneMeter()
-    setNotice('Hands-free listening paused')
-    setTranscript('Hands-free listening is paused.')
   }
 
   const setPending = (next: PendingEdit | null) => {
@@ -459,6 +467,7 @@ function App() {
     setNotice('I need one detail')
     setTranscript(question)
     addVoiceMessage('assistant', question)
+    setVoiceThreadOpen(true)
   }
 
   const commitAddition = (addition: Extract<PendingEdit, { kind: 'addition-details' }>) => {
@@ -483,12 +492,58 @@ function App() {
     setTranscript(`I added ${formatAmount(addition.amount)} ${addition.unit ?? ''} ${addition.name}, ${addition.note}, and updated step ${addition.stepIndex + 1}. Say “save my changes” to keep this version.`)
   }
 
+  const findVoiceTimer = (label?: string | null) => {
+    const activeTimers = timerService.getActiveTimers()
+    if (!label || /^timer$/i.test(label)) return activeTimers[0]
+    const normalized = label.toLowerCase().replace(/\btimer\b/g, '').trim()
+    return activeTimers.find((timer) => timer.label.toLowerCase().includes(normalized)) ?? activeTimers[0]
+  }
+
   const handleCommand = (rawCommand: string) => {
     const command = rawCommand.toLowerCase().trim().replace(/[.?!]+$/, '')
 
+    if (/\bset\b.*\btimer\b/.test(command)) {
+      const durationSeconds = parseTimerDurationSeconds(command)
+      if (durationSeconds) {
+        const label = parseTimerLabel(command)
+        timerService.createTimer({ label, durationMs: durationSeconds * 1000, source: 'voice' })
+        showVoiceStatus(`${label} timer set for ${Math.round(durationSeconds / 60)} minutes.`)
+        return
+      }
+    }
+    if (/\b(?:how much time|time.*left|timer.*remaining)\b/.test(command)) {
+      const timer = findVoiceTimer(command)
+      showVoiceStatus(timer ? `${timer.label} has ${formatTimerDuration(timerService.getRemainingTime(timer))} remaining.` : 'There are no active timers.')
+      return
+    }
+    if (/\bpause\b.*\btimer\b/.test(command)) {
+      const timer = findVoiceTimer(command)
+      if (timer) timerService.pauseTimer(timer.id)
+      showVoiceStatus(timer ? `${timer.label} paused.` : 'There are no active timers.')
+      return
+    }
+    if (/\bresume\b.*\btimer\b/.test(command)) {
+      const timer = findVoiceTimer(command)
+      if (timer) timerService.resumeTimer(timer.id)
+      showVoiceStatus(timer ? `${timer.label} resumed.` : 'There are no paused timers.')
+      return
+    }
+    if (/\badd\b.*\b(?:timer|minutes?|mins?)\b/.test(command)) {
+      const timer = findVoiceTimer(command)
+      const durationSeconds = parseTimerDurationSeconds(command)
+      if (timer && durationSeconds) timerService.addTime(timer.id, durationSeconds * 1000)
+      showVoiceStatus(timer && durationSeconds ? `Added ${Math.round(durationSeconds / 60)} minutes to ${timer.label}.` : 'Tell me how much time to add and which timer.')
+      return
+    }
+    if (/\bcancel\b.*\btimer\b/.test(command)) {
+      const timer = findVoiceTimer(command)
+      if (timer) timerService.cancelTimer(timer.id)
+      showVoiceStatus(timer ? `${timer.label} cancelled.` : 'There are no active timers.')
+      return
+    }
+
     if (/\b(?:pause|stop)\s+(?:hands[- ]free|listening|microphone|mic)\b/.test(command)) {
-      pauseHandsFree()
-      showVoiceStatus('Listening paused. Tap the microphone when you are ready to resume.')
+      showVoiceStatus('Voice control stays available while Hub is open.')
       return
     }
 
@@ -670,7 +725,7 @@ function App() {
       } else {
         setPending({ kind: 'ingredient-choice', ingredient: offered })
         setNotice('Replace or add?')
-        setTranscript(`Should ${formatAmount(offered.amount)} ${offered.unit} ${offered.name} replace the cod, or should I add it as a separate ingredient?`)
+        showVoiceStatus(`Should ${formatAmount(offered.amount)} ${offered.unit} ${offered.name} replace the cod, or should I add it as a separate ingredient?`)
       }
       return
     }
@@ -701,6 +756,7 @@ function App() {
     const response = 'I didn’t catch that command. Please try saying it another way.'
     setNotice('I didn’t catch a kitchen command yet')
     showVoiceStatus(response)
+    setVoiceThreadOpen(true)
   }
 
   const executeVoiceCommand = (command: VoiceCommand) => {
@@ -781,11 +837,49 @@ function App() {
         break
       }
       case 'pause_listening':
-        pauseHandsFree()
+        command.response = 'Voice control stays available while Hub is open.'
         break
+      case 'create_timer':
+        if (command.duration_seconds && command.duration_seconds > 0) {
+          timerService.createTimer({
+            label: command.timer_label || 'Timer',
+            durationMs: command.duration_seconds * 1000,
+            source: 'voice',
+          })
+        }
+        break
+      case 'timer_remaining': {
+        const timer = findVoiceTimer(command.timer_label)
+        command.response = timer
+          ? `${timer.label} has ${formatTimerDuration(timerService.getRemainingTime(timer))} remaining.`
+          : 'There are no active timers.'
+        break
+      }
+      case 'pause_timer': {
+        const timer = findVoiceTimer(command.timer_label)
+        if (timer) timerService.pauseTimer(timer.id)
+        break
+      }
+      case 'resume_timer': {
+        const timer = findVoiceTimer(command.timer_label)
+        if (timer) timerService.resumeTimer(timer.id)
+        break
+      }
+      case 'add_timer_time': {
+        const timer = findVoiceTimer(command.timer_label)
+        if (timer && command.duration_seconds) timerService.addTime(timer.id, command.duration_seconds * 1000)
+        break
+      }
+      case 'cancel_timer': {
+        const timer = findVoiceTimer(command.timer_label)
+        if (timer) timerService.cancelTimer(timer.id)
+        break
+      }
       case 'unknown':
+        setVoiceThreadOpen(true)
         break
     }
+    if (command.confidence < .65 || command.response.trim().endsWith('?')) setVoiceThreadOpen(true)
     showVoiceStatus(command.response)
   }
 
@@ -809,6 +903,7 @@ function App() {
       if (!transcriptionResponse.ok) throw new Error(transcription.error || 'Transcription failed.')
       transcript = String(transcription.text || '').trim()
       if (!transcript) throw new Error('I did not hear a complete request.')
+      addVoiceMessage('user', transcript)
 
       const commandResponse = await fetch('/api/voice/command', {
         method: 'POST',
@@ -823,6 +918,11 @@ function App() {
             stepCount: workingRecipeRef.current.steps.length,
             servings: servingsRef.current,
             hasDraftChanges,
+            activeTimers: timerService.getActiveTimers().map((timer) => ({
+              label: timer.label,
+              status: timer.status,
+              remainingSeconds: Math.ceil(timerService.getRemainingTime(timer) / 1000),
+            })),
           },
         }),
       })
@@ -866,7 +966,7 @@ function App() {
       const samples = new Float32Array(wakeSamplesRef.current.splice(0, samplesPerUpload))
       wakeUploadRef.current = wakeUploadRef.current
         .then(async () => {
-          await fetch('http://127.0.0.1:8788/audio', {
+          await fetch('/api/wake/audio', {
             method: 'POST',
             headers: { 'Content-Type': 'application/octet-stream', 'X-Sample-Rate': String(audioContext.sampleRate) },
             body: samples.buffer,
@@ -910,7 +1010,6 @@ function App() {
     meterTimerRef.current = setInterval(() => {
       analyser.getByteTimeDomainData(samples)
       const rms = Math.sqrt(samples.reduce((sum, sample) => sum + ((sample - 128) / 128) ** 2, 0) / samples.length)
-      setMicLevel(Math.min(1, rms * 7))
       const now = performance.now()
       if (rms > .035) {
         lastVoiceAtRef.current = now
@@ -951,11 +1050,8 @@ function App() {
     }
   }, [])
 
-  const toggleListening = async () => {
-    if (shouldListenRef.current) {
-      pauseHandsFree()
-      return
-    }
+  const startHandsFree = async () => {
+    if (shouldListenRef.current || micStreamRef.current) return
     if (!window.MediaRecorder) {
       setNotice('Voice recording is unavailable')
       const response = 'This browser cannot record microphone audio. Open Orka in current Chrome or Edge.'
@@ -984,8 +1080,11 @@ function App() {
       await startMicrophoneMeter()
     } catch (error) {
       stopMicrophoneMeter()
+      setVoicePhase('error')
       setNotice('Microphone is unavailable')
-      const response = error instanceof DOMException && error.name === 'NotAllowedError'
+      const response = !window.isSecureContext
+        ? 'Microphone access is blocked in this LAN preview. Launch it with the Surface voice-testing command shown by the development server.'
+        : error instanceof DOMException && error.name === 'NotAllowedError'
         ? 'Microphone permission was denied. Allow access and try again.'
         : 'This browser is not providing microphone audio. Try Chrome or Edge.'
       setTranscript(response)
@@ -999,6 +1098,12 @@ function App() {
     setTranscript(`Say “${wakePhraseRef.current}” before a command.`)
     addVoiceMessage('assistant', `Say “${wakePhraseRef.current}”, then your command.`)
   }
+  useEffect(() => {
+    const startTimer = window.setTimeout(() => void startHandsFree(), 150)
+    return () => window.clearTimeout(startTimer)
+    // Voice startup is intentionally tied to mounting the app, not rerenders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => () => {
     shouldListenRef.current = false
@@ -1020,7 +1125,6 @@ function App() {
 
   const openRecipe = (selected: Recipe) => {
     const fresh = cloneRecipe(selected)
-    pauseHandsFree()
     setBaseRecipe(selected)
     workingRecipeRef.current = fresh
     setWorkingRecipe(fresh)
@@ -1038,7 +1142,6 @@ function App() {
   }
 
   const finishRecipe = () => {
-    pauseHandsFree()
     localCookingSessionRepository.clear()
     setHasActiveRecipe(false)
     setChecked(new Set())
@@ -1223,13 +1326,6 @@ function App() {
     }
   }
 
-  const chooseTimer = (minutes: number) => {
-    const seconds = minutes * 60
-    setTimerDuration(seconds)
-    setTimerRemaining(seconds)
-    setTimerRunning(false)
-  }
-
   const runLabPrompt = (prompt = labPrompt) => {
     const cleanPrompt = prompt.trim()
     if (!cleanPrompt || labStatus === 'loading') return
@@ -1274,6 +1370,10 @@ function App() {
             Hub
           </div>
         </button>
+        <div className={`voice-presence voice-${voicePhase}`} role="status" aria-live="polite">
+          <span aria-hidden="true" />
+          {voiceStatusLabel}
+        </div>
         <div className="topbar-actions">
           {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('recipe-lab')}>Recipe Lab</button> : null}
           {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('timer')}>Timer</button> : null}
@@ -1389,17 +1489,17 @@ function App() {
       {activeView === 'home' ? (
         <section className="hub-home" aria-label="Orka home">
           <div className="hub-layout">
-            <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
-              <span className="hub-card-icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48"><path d="M10 24h28v5a12 12 0 0 1-12 12h-4A12 12 0 0 1 10 29v-5Z"/><path d="M7 24h34M18 18c-3-4 3-5 0-9M27 18c-3-4 3-5 0-9"/></svg>
-              </span>
-              {hasActiveRecipe ? (
-                <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {workingRecipe.minutes} minutes</small></span>
-              ) : (
-                <span className="hub-card-copy"><span className="hub-card-kicker">Ready when you are</span><strong>Choose your next recipe</strong><small>Browse saved recipes or start with an idea from Recipe Lab.</small></span>
-              )}
-              <span className="hub-card-action">{hasActiveRecipe ? 'Open cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
-            </button>
+            <div className="hub-left-stack">
+              <WeatherCard weather={demoWeather} />
+              <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
+                {hasActiveRecipe ? (
+                  <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {workingRecipe.minutes} minutes</small></span>
+                ) : (
+                  <span className="hub-card-copy"><span className="hub-card-kicker">Ready when you are</span><strong>Choose your next recipe</strong><small>Browse saved recipes or start with an idea from Recipe Lab.</small></span>
+                )}
+                <span className="hub-card-action">{hasActiveRecipe ? 'Open cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
+              </button>
+            </div>
             <section className="calendar-card" aria-labelledby="calendar-title">
               <header className="calendar-heading">
                 <div><p className="eyebrow">Today</p><h2 id="calendar-title">{todayLabel}</h2></div>
@@ -1426,15 +1526,8 @@ function App() {
                 )}
               </div>
             </section>
-            <section className="reminder-banner" aria-label="Kitchen reminder">
-              <span className="reminder-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span>
-              <div className="reminder-copy">
-                <p className="eyebrow">Kitchen reminder</p>
-                <strong>{calendarConnection !== 'connected' ? 'Connect your calendar for prep reminders.' : calendarLoadState === 'loading' ? 'Checking today’s reminders…' : reminderEvent ? reminderEvent.title : 'No kitchen reminders for today.'}</strong>
-              </div>
-              {reminderEvent ? <time dateTime={reminderEvent.start}>{formatCalendarTime(reminderEvent)}</time> : calendarConnection === 'ready' ? <button type="button" onClick={connectGoogleCalendar}>Sign in</button> : null}
-            </section>
           </div>
+          <LiveDock onOpenTimers={() => setActiveView('timer')} />
         </section>
       ) : activeView === 'recipe-lab' ? (
         <section className="recipe-lab" aria-label="Recipe Lab">
@@ -1506,32 +1599,7 @@ function App() {
             </aside>
           </div>
         </section>
-      ) : activeView === 'timer' ? (
-        <section className={`timer-view ${timerRemaining === 0 ? 'is-complete' : ''}`} aria-labelledby="timer-title">
-          <div className="timer-heading">
-            <p className="eyebrow">Kitchen timer</p>
-            <h1 id="timer-title">{timerRemaining === 0 ? 'Time’s up.' : timerRunning ? 'Timer running' : timerRemaining < timerDuration ? 'Timer paused' : 'Set a timer'}</h1>
-            <p>{timerRemaining === 0 ? 'Your timer has finished.' : 'Keep it visible from anywhere in the room.'}</p>
-          </div>
-          <div className="timer-stage" aria-live="polite" aria-atomic="true">
-            <span className="timer-display">{formatTimer(timerRemaining)}</span>
-            <span className="timer-status">{timerRemaining === 0 ? 'Complete' : timerRunning ? 'Counting down' : 'Ready'}</span>
-          </div>
-          <div className="timer-controls">
-            <div className="timer-presets" aria-label="Timer presets">
-              {[5, 10, 15, 30].map((minutes) => <button type="button" className={timerDuration === minutes * 60 ? 'active' : ''} aria-pressed={timerDuration === minutes * 60} key={minutes} onClick={() => chooseTimer(minutes)}>{minutes} min</button>)}
-            </div>
-            <div className="timer-actions">
-              {timerRemaining === 0 ? (
-                <button className="timer-primary" type="button" onClick={() => { setTimerRemaining(timerDuration); setTimerRunning(true) }}>Start again</button>
-              ) : (
-                <button className="timer-primary" type="button" onClick={() => setTimerRunning((running) => !running)}>{timerRunning ? 'Pause' : timerRemaining < timerDuration ? 'Resume' : 'Start timer'}</button>
-              )}
-              <button className="timer-secondary" type="button" onClick={() => { setTimerRunning(false); setTimerRemaining(timerDuration) }}>Reset</button>
-            </div>
-          </div>
-        </section>
-      ) : (
+      ) : activeView === 'timer' ? <TimerView /> : (
       <div className="recipe-view" key={workingRecipe.id}>
       <section className="recipe-heading">
         <div>
@@ -1591,25 +1659,44 @@ function App() {
             )}
           </div>
         </section>
-        <section className={`conversation-card voice-${voicePhase} ${alwaysListening ? 'is-listening' : ''} ${pendingEdit ? 'needs-answer' : ''} ${voicePanelNeedsRoom ? 'has-expanded-content' : ''}`} aria-label="Voice conversation">
-          <div className="conversation-log" ref={conversationRef} aria-live="polite">
-            {voiceMessages.map((message) => (
-              <div className={`voice-message ${message.role}`} key={message.id} aria-label={message.role === 'user' ? 'You said' : 'Orka response'}>
-                <p>{message.role === 'user' ? `“${message.text}”` : message.text}</p>
-              </div>
-            ))}
+        <section className={`conversation-card voice-${voicePhase} ${alwaysListening ? 'is-listening' : ''} ${pendingEdit ? 'needs-answer' : ''} ${voicePanelNeedsRoom ? 'has-expanded-content' : ''}`} aria-label="Voice command output">
+          <div className="voice-output-heading">
+            <span><i aria-hidden="true" />{voiceStatusLabel}</span>
+            {voiceMessages.length > 1 || pendingEdit ? <button type="button" onClick={() => setVoiceThreadOpen(true)}>Open conversation</button> : null}
           </div>
-          <div className="voice-control">
-            {alwaysListening ? <span className="mic-meter" aria-label="Microphone activity"><i style={{ height: `${10 + micLevel * 20}px` }} /><i style={{ height: `${14 + micLevel * 28}px` }} /><i style={{ height: `${8 + micLevel * 17}px` }} /></span> : null}
-            <button className="mic-button" type="button" onClick={toggleListening} aria-label={alwaysListening ? `Pause hands-free listening. Status: ${voicePhase}` : 'Enable OpenAI hands-free listening'}>
-              <svg aria-hidden="true" viewBox="0 0 48 48"><path d="M24 29a7 7 0 0 0 7-7V12a7 7 0 1 0-14 0v10a7 7 0 0 0 7 7Z"/><path d="M11 22a13 13 0 0 0 26 0M24 35v7M17 42h14"/></svg>
-            </button>
+          <div className="conversation-log" aria-live="polite">
+            <div className={`voice-message ${currentVoiceMessage?.role ?? 'assistant'}`} aria-label={currentVoiceMessage?.role === 'user' ? 'You said' : 'Orka response'}>
+              <p>{currentVoiceMessage?.role === 'user' ? `“${currentVoiceMessage.text}”` : currentVoiceMessage?.text ?? READY_VOICE_MESSAGE}</p>
+            </div>
           </div>
         </section>
         </div>
       </div>
       </div>
       )}
+      {voiceThreadOpen ? (
+        <div className="voice-thread-backdrop" role="presentation" onClick={() => setVoiceThreadOpen(false)}>
+          <section className="voice-thread" role="dialog" aria-modal="true" aria-labelledby="voice-thread-title" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <p className="eyebrow">Orka conversation</p>
+                <h2 id="voice-thread-title">Work through it together</h2>
+              </div>
+              <button type="button" onClick={() => setVoiceThreadOpen(false)} aria-label="Close conversation">×</button>
+            </header>
+            <div className="voice-thread-messages" ref={conversationRef} aria-live="polite">
+              {voiceMessages.map((message) => (
+                <article className={`voice-thread-message ${message.role}`} key={message.id}>
+                  <span>{message.role === 'user' ? 'You' : 'Orka'}</span>
+                  <p>{message.text}</p>
+                </article>
+              ))}
+            </div>
+            <footer><span aria-hidden="true" />{voiceStatusLabel}. Keep speaking naturally.</footer>
+          </section>
+        </div>
+      ) : null}
+      <AttentionLayer reminder={attentionReminder} />
     </main>
   )
 }

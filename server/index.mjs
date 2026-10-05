@@ -52,7 +52,8 @@ const allowedActions = [
   'set_servings', 'adjust_servings', 'ingredient_quantity',
   'check_ingredient', 'uncheck_ingredient', 'scroll_ingredients',
   'remove_ingredient', 'save_changes', 'discard_changes',
-  'pause_listening', 'unknown',
+  'pause_listening', 'create_timer', 'timer_remaining',
+  'pause_timer', 'resume_timer', 'add_timer_time', 'cancel_timer', 'unknown',
 ]
 
 const commandSchema = {
@@ -64,10 +65,12 @@ const commandSchema = {
     delta: { anyOf: [{ type: 'integer', minimum: -8, maximum: 8 }, { type: 'null' }] },
     ingredient: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     direction: { anyOf: [{ type: 'string', enum: ['up', 'down'] }, { type: 'null' }] },
+    duration_seconds: { anyOf: [{ type: 'integer', minimum: 1, maximum: 86400 }, { type: 'null' }] },
+    timer_label: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     response: { type: 'string' },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
   },
-  required: ['action', 'step', 'servings', 'delta', 'ingredient', 'direction', 'response', 'confidence'],
+  required: ['action', 'step', 'servings', 'delta', 'ingredient', 'direction', 'duration_seconds', 'timer_label', 'response', 'confidence'],
   additionalProperties: false,
 }
 
@@ -307,6 +310,28 @@ const publishWakeEvent = async (request, response) => {
   return sendJson(response, 200, { delivered: wakeClients.size })
 }
 
+const forwardWakeAudio = async (request, response) => {
+  const audio = await readBody(request, 2 * 1024 * 1024)
+  if (!audio.length) return sendJson(response, 400, { error: 'No wake audio was received.' })
+
+  let listenerResponse
+  try {
+    listenerResponse = await fetch(`${wakeListenerUrl}/audio`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Sample-Rate': String(request.headers['x-sample-rate'] || ''),
+      },
+      body: audio,
+    })
+  } catch {
+    return sendJson(response, 503, { error: 'The local wake listener is not running.' })
+  }
+
+  const result = await listenerResponse.json().catch(() => ({}))
+  return sendJson(response, listenerResponse.status, result)
+}
+
 const readBody = async (request, limit = 15 * 1024 * 1024) => {
   const chunks = []
   let size = 0
@@ -374,6 +399,7 @@ const createCommand = async (request, response) => {
         'Convert a spoken Orka request into exactly one safe application command.',
         'Use only the supplied action enum. Never invent ingredient names that were not spoken or present in context.',
         'Step numbers spoken by the user are one-based. Use null for every field irrelevant to the selected action.',
+        'For timer actions, convert the spoken duration to duration_seconds and use timer_label for a spoken name such as rice or cod.',
         'The response is a short confirmation of what the app will do. For unknown or ambiguous requests, choose unknown and ask one concise clarifying question.',
       ].join(' '),
       input: JSON.stringify({ transcript: body.transcript, context: body.context || {} }),
@@ -433,6 +459,7 @@ const server = createServer(async (request, response) => {
     if (request.method === 'GET' && request.url?.startsWith('/api/calendar/today')) return await listTodayCalendarEvents(request, response)
     if (request.method === 'DELETE' && request.url === '/api/calendar/connection') return await disconnectGoogleCalendar(request, response)
     if (request.method === 'GET' && request.url === '/api/wake/events') return openWakeEvents(request, response)
+    if (request.method === 'POST' && request.url === '/api/wake/audio') return await forwardWakeAudio(request, response)
     if (request.method === 'POST' && request.url === '/api/wake') return await publishWakeEvent(request, response)
     if (request.method === 'POST' && request.url?.startsWith('/api/voice/transcribe')) return await transcribe(request, response)
     if (request.method === 'POST' && request.url === '/api/voice/command') return await createCommand(request, response)

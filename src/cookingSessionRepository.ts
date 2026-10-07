@@ -1,10 +1,12 @@
-import type { Recipe } from './App'
+import type { Recipe, ScaleRequest } from './recipe/recipeTypes'
+import { normalizeRecipe } from './recipe/normalize/normalizeRecipe'
 
 export type CookingSession = {
   baseRecipe: Recipe
   workingRecipe: Recipe
   step: number
   servings: number
+  scaleRequest?: ScaleRequest
   checkedIngredients: number[]
   hasDraftChanges: boolean
 }
@@ -33,8 +35,11 @@ export const localCookingSessionRepository: CookingSessionRepository = {
         if (!session.baseRecipe?.id || !session.workingRecipe?.id) return null
         return {
           ...session,
+          baseRecipe: normalizeRecipe(session.baseRecipe),
+          workingRecipe: normalizeRecipe(session.workingRecipe),
           step: Math.max(0, Math.min(session.workingRecipe.steps.length - 1, Number(session.step) || 0)),
           servings: Math.max(1, Number(session.servings) || session.workingRecipe.baseServings),
+          scaleRequest: session.scaleRequest ?? { mode: 'servings', servings: Math.max(1, Number(session.servings) || session.workingRecipe.baseServings) },
           checkedIngredients: Array.isArray(session.checkedIngredients) ? session.checkedIngredients : [],
           hasDraftChanges: Boolean(session.hasDraftChanges),
         }
@@ -45,6 +50,7 @@ export const localCookingSessionRepository: CookingSessionRepository = {
         workingRecipe: cloneRecipe(defaultRecipe),
         step: 0,
         servings: defaultRecipe.baseServings,
+        scaleRequest: { mode: 'servings', servings: defaultRecipe.baseServings },
         checkedIngredients: [],
         hasDraftChanges: false,
       }

@@ -96,7 +96,7 @@ Write-Host "Open this address on the Surface: $surfaceUrl" -ForegroundColor Cyan
 Write-Host 'Keep this terminal open. Saved frontend changes will update on the Surface automatically.'
 Write-Host ''
 Write-Host 'For microphone and wake-word testing, run this once in PowerShell on the Surface:' -ForegroundColor Yellow
-Write-Host "& \"`${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe\" --user-data-dir=\"`${env:LOCALAPPDATA}\Orka\LanVoice\" --unsafely-treat-insecure-origin-as-secure=$surfaceUrl --app=$surfaceUrl" -ForegroundColor Cyan
+Write-Host "Download the Surface launcher: ${surfaceUrl}Hub-SurfaceVoice.ps1" -ForegroundColor Cyan
 Write-Host "Private visual monitor: $monitorClientsUrl"
 Write-Host 'The visual monitor hides all form-field values and is available only during LAN development.'
 Write-Host 'Press Ctrl+C here when the design session is finished.'
@@ -115,3 +115,4 @@ try {
     Stop-Process -Id $voiceProcess.Id -Force -ErrorAction SilentlyContinue
   }
 }
+

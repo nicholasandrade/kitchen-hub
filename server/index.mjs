@@ -4,6 +4,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createHash, randomBytes } from 'node:crypto'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createSheetsRecipeStore } from './sheetsRecipes.mjs'
+import { createCalendarStore } from './calendars.mjs'
+import { createWeatherService } from './weather.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const dist = join(root, 'dist')
@@ -33,16 +36,21 @@ const getConfig = () => {
     configured: /^sk-[A-Za-z0-9_-]{20,}$/.test(apiKey),
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || local.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     commandModel: process.env.OPENAI_COMMAND_MODEL || local.OPENAI_COMMAND_MODEL || 'gpt-5-mini',
-    wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Orka',
+    wakePhrase: process.env.KITCHEN_HUB_WAKE_PHRASE || local.KITCHEN_HUB_WAKE_PHRASE || 'Hub',
     googleClientId: process.env.GOOGLE_CLIENT_ID || app.googleClientId || local.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || app.googleClientSecret || local.GOOGLE_CLIENT_SECRET || '',
     googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || local.GOOGLE_REDIRECT_URI || '',
+    googleSpreadsheetId: process.env.GOOGLE_RECIPES_SPREADSHEET_ID || local.GOOGLE_RECIPES_SPREADSHEET_ID || '',
   }
 }
 const port = Number(process.env.VOICE_SERVER_PORT || readLocalEnv().VOICE_SERVER_PORT || 8787)
 const googleTokenPath = join(dataDirectory, 'google-calendar-token.json')
 const googleOAuthStates = new Map()
-const calendarScope = 'https://www.googleapis.com/auth/calendar.readonly'
+const googleScopes = [
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+].join(' ')
 const googleRedirectUri = () => getConfig().googleRedirectUri || `http://127.0.0.1:${port}`
 const wakeListenerUrl = process.env.KITCHEN_HUB_WAKE_LISTENER_URL || 'http://127.0.0.1:8788'
 const wakeClients = new Set()
@@ -53,7 +61,8 @@ const allowedActions = [
   'check_ingredient', 'uncheck_ingredient', 'scroll_ingredients',
   'remove_ingredient', 'save_changes', 'discard_changes',
   'pause_listening', 'create_timer', 'timer_remaining',
-  'pause_timer', 'resume_timer', 'add_timer_time', 'cancel_timer', 'unknown',
+  'pause_timer', 'resume_timer', 'add_timer_time', 'cancel_timer',
+  'scale_anchor', 'start_step_timer', 'unknown',
 ]
 
 const commandSchema = {
@@ -67,10 +76,46 @@ const commandSchema = {
     direction: { anyOf: [{ type: 'string', enum: ['up', 'down'] }, { type: 'null' }] },
     duration_seconds: { anyOf: [{ type: 'integer', minimum: 1, maximum: 86400 }, { type: 'null' }] },
     timer_label: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    quantity: { anyOf: [{ type: 'number', exclusiveMinimum: 0 }, { type: 'null' }] },
+    unit: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     response: { type: 'string' },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
   },
-  required: ['action', 'step', 'servings', 'delta', 'ingredient', 'direction', 'duration_seconds', 'timer_label', 'response', 'confidence'],
+  required: ['action', 'step', 'servings', 'delta', 'ingredient', 'direction', 'duration_seconds', 'timer_label', 'quantity', 'unit', 'response', 'confidence'],
+  additionalProperties: false,
+}
+
+const recipeDraftSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    description: { type: 'string' },
+    minutes: { type: 'integer', minimum: 1, maximum: 1440 },
+    baseServings: { type: 'integer', minimum: 1, maximum: 24 },
+    calories: { type: 'number', minimum: 0 },
+    protein: { type: 'number', minimum: 0 },
+    ingredients: {
+      type: 'array', minItems: 1,
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          sourceQuantity: { type: 'string' },
+          sourceUnit: { type: 'string' },
+          notes: { type: 'string' },
+          scalingBehavior: { type: 'string', enum: ['linear', 'bounded', 'to_taste', 'optional', 'non_scaling'] },
+          steps: { type: 'array', items: { type: 'integer', minimum: 0 } },
+        },
+        required: ['name', 'sourceQuantity', 'sourceUnit', 'notes', 'scalingBehavior', 'steps'],
+        additionalProperties: false,
+      },
+    },
+    steps: { type: 'array', minItems: 1, items: { type: 'string' } },
+    servingIdeas: { type: 'array', items: { type: 'string' } },
+    notes: { type: 'array', items: { type: 'string' } },
+    response: { type: 'string' },
+  },
+  required: ['name', 'description', 'minutes', 'baseServings', 'calories', 'protein', 'ingredients', 'steps', 'servingIdeas', 'notes', 'response'],
   additionalProperties: false,
 }
 
@@ -153,6 +198,7 @@ const calendarStatus = async (_request, response) => {
   return sendJson(response, 200, {
     configured: Boolean(googleClientId && googleClientSecret),
     connected: Boolean(token?.refresh_token || (token?.access_token && token?.expires_at > Date.now())),
+    recipesAuthorized: String(token?.scope || '').includes('spreadsheets'),
     redirectUri: googleRedirectUri(),
   })
 }
@@ -171,7 +217,7 @@ const startGoogleOAuth = async (_request, response) => {
     client_id: googleClientId,
     redirect_uri: googleRedirectUri(),
     response_type: 'code',
-    scope: calendarScope,
+    scope: googleScopes,
     access_type: 'offline',
     include_granted_scopes: 'true',
     prompt: 'consent',
@@ -192,7 +238,7 @@ const finishGoogleOAuth = async (request, response) => {
   googleOAuthStates.delete(state)
   if (oauthError || !code || !oauthState || oauthState.expiresAt < Date.now()) {
     response.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
-    response.end('<!doctype html><title>Google Calendar connection failed</title><p>Orka could not connect Google Calendar. Close this window and try again from Settings.</p>')
+    response.end('<!doctype html><title>Google connection failed</title><p>Hub could not connect Google services. Close this window and try again from Settings.</p>')
     return
   }
 
@@ -216,10 +262,10 @@ const finishGoogleOAuth = async (request, response) => {
     access_token: token.access_token,
     refresh_token: token.refresh_token || previous?.refresh_token,
     expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
-    scope: token.scope || calendarScope,
+    scope: token.scope || googleScopes,
   })
   response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
-  response.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Google Calendar connected</title><body style="font-family:system-ui;padding:40px;background:#f1f3f2;color:#272c2e"><h1>Google Calendar connected</h1><p>You can close this window and return to Orka.</p><script>window.opener?.postMessage({type:"kitchen-hub-google-connected"}, "*"); setTimeout(() => window.close(), 900);</script></body>')
+  response.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Google connected</title><body style="font-family:system-ui;padding:40px;background:#f1f3f2;color:#272c2e"><h1>Google connected</h1><p>Calendar and Hub Recipes are ready. You can close this window and return to Hub.</p><script>window.opener?.postMessage({type:"kitchen-hub-google-connected"}, "*"); setTimeout(() => window.close(), 900);</script></body>')
 }
 
 const getGoogleAccessToken = async () => {
@@ -249,40 +295,66 @@ const getGoogleAccessToken = async () => {
   return nextToken.access_token
 }
 
+const sheetsRecipeStore = createSheetsRecipeStore({
+  getAccessToken: getGoogleAccessToken,
+  getConfiguredSpreadsheetId: () => getConfig().googleSpreadsheetId,
+})
+
+const listRecipes = async (request, response) => {
+  const requestUrl = new URL(request.url, `http://127.0.0.1:${port}`)
+  const query = String(requestUrl.searchParams.get('q') || '').trim().toLowerCase()
+  const recipes = await sheetsRecipeStore.list()
+  const filtered = query
+    ? recipes.filter((recipe) => `${recipe.name} ${recipe.description} ${recipe.ingredients.map((ingredient) => ingredient.ingredient || ingredient.name).join(' ')}`.toLowerCase().includes(query))
+    : recipes
+  return sendJson(response, 200, { recipes: filtered })
+}
+
+const getRecipe = async (request, response) => {
+  const id = decodeURIComponent(request.url.split('/').at(-1) || '')
+  const recipes = await sheetsRecipeStore.list()
+  return sendJson(response, 200, { recipe: recipes.find((recipe) => recipe.id === id) || null })
+}
+
+const saveRecipe = async (request, response) => {
+  const body = JSON.parse((await readBody(request, 2 * 1024 * 1024)).toString('utf8') || '{}')
+  const recipe = body.recipe
+  if (!recipe?.id || !recipe?.name || !Array.isArray(recipe.ingredients) || !Array.isArray(recipe.steps)) {
+    return sendJson(response, 400, { error: 'A normalized recipe is required.' })
+  }
+  await sheetsRecipeStore.save(recipe)
+  return sendJson(response, 200, { saved: true, id: recipe.id })
+}
+
+const getWeather = createWeatherService({ getLocation: () => {
+  const local = readLocalEnv()
+  return {
+    city: process.env.WEATHER_CITY || local.WEATHER_CITY || 'Los Angeles',
+    latitude: Number(process.env.WEATHER_LATITUDE || local.WEATHER_LATITUDE || 34.0522),
+    longitude: Number(process.env.WEATHER_LONGITUDE || local.WEATHER_LONGITUDE || -118.2437),
+  }
+} })
+const calendarStore = createCalendarStore({
+  selectionPath: join(dataDirectory, 'calendar-selections.json'), getAccessToken: getGoogleAccessToken,
+})
+const listCalendars = async (_request, response) => sendJson(response, 200, { calendars: await calendarStore.list() })
+const selectCalendar = async (request, response) => {
+  const body = JSON.parse((await readBody(request, 16 * 1024)).toString('utf8'))
+  if (typeof body.id !== 'string' || !body.id || typeof body.selected !== 'boolean') {
+    return sendJson(response, 400, { error: 'Calendar ID and selection are required.' })
+  }
+  await calendarStore.select(body.id, body.selected)
+  return sendJson(response, 200, { saved: true })
+}
 const listTodayCalendarEvents = async (request, response) => {
   const requestUrl = new URL(request.url, `http://127.0.0.1:${port}`)
   const timeMin = requestUrl.searchParams.get('timeMin')
   const timeMax = requestUrl.searchParams.get('timeMax')
   const timeZone = requestUrl.searchParams.get('timeZone') || 'UTC'
-  if (!timeMin || !timeMax || Number.isNaN(Date.parse(timeMin)) || Number.isNaN(Date.parse(timeMax))) {
+  if (!timeMin || !timeMax || Number.isNaN(Date.parse(timeMin)) || Number.isNaN(Date.parse(timeMax)) || Date.parse(timeMin) >= Date.parse(timeMax)) {
     return sendJson(response, 400, { error: 'Valid day boundaries are required.' })
   }
-  const accessToken = await getGoogleAccessToken()
-  const calendarUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
-  calendarUrl.search = new URLSearchParams({
-    timeMin,
-    timeMax,
-    timeZone,
-    singleEvents: 'true',
-    orderBy: 'startTime',
-    maxResults: '20',
-  }).toString()
-  const calendarResponse = await fetch(calendarUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-  const payload = await calendarResponse.json()
-  if (!calendarResponse.ok) throw Object.assign(new Error(payload.error?.message || 'Google Calendar could not load today’s events.'), { status: calendarResponse.status })
-  const events = (payload.items || [])
-    .filter((event) => event.status !== 'cancelled')
-    .map((event) => ({
-      id: String(event.id || ''),
-      title: String(event.summary || 'Untitled event'),
-      start: event.start?.dateTime || event.start?.date || '',
-      end: event.end?.dateTime || event.end?.date || '',
-      allDay: Boolean(event.start?.date && !event.start?.dateTime),
-      location: String(event.location || ''),
-      description: String(event.description || ''),
-      link: String(event.htmlLink || ''),
-    }))
-  return sendJson(response, 200, { events, timeZone })
+  return sendJson(response, 200, await calendarStore.events({ timeMin, timeMax, timeZone }))
 }
 
 const disconnectGoogleCalendar = async (_request, response) => {
@@ -305,7 +377,7 @@ const openWakeEvents = (request, response) => {
 
 const publishWakeEvent = async (request, response) => {
   const body = JSON.parse((await readBody(request, 16 * 1024)).toString('utf8') || '{}')
-  const event = JSON.stringify({ phrase: String(body.phrase || 'Orka'), at: Date.now() })
+  const event = JSON.stringify({ phrase: String(body.phrase || 'Hub'), at: Date.now() })
   for (const client of wakeClients) client.write(`event: wake\ndata: ${event}\n\n`)
   return sendJson(response, 200, { delivered: wakeClients.size })
 }
@@ -396,10 +468,12 @@ const createCommand = async (request, response) => {
     body: JSON.stringify({
       model: commandModel,
       instructions: [
-        'Convert a spoken Orka request into exactly one safe application command.',
+        'Convert a spoken Hub request into exactly one safe application command.',
         'Use only the supplied action enum. Never invent ingredient names that were not spoken or present in context.',
         'Step numbers spoken by the user are one-based. Use null for every field irrelevant to the selected action.',
         'For timer actions, convert the spoken duration to duration_seconds and use timer_label for a spoken name such as rice or cod.',
+        'Use start_step_timer when the user asks to start the timer implied by the current recipe step.',
+        'Use scale_anchor for statements such as “I have 3 pounds of chicken” or “scale to 1.5 kilos”; put the numeric amount in quantity, normalized unit text in unit, and the matched recipe ingredient in ingredient.',
         'The response is a short confirmation of what the app will do. For unknown or ambiguous requests, choose unknown and ask one concise clarifying question.',
       ].join(' '),
       input: JSON.stringify({ transcript: body.transcript, context: body.context || {} }),
@@ -416,6 +490,37 @@ const createCommand = async (request, response) => {
   const command = JSON.parse(outputText)
   if (!allowedActions.includes(command.action)) throw new Error('invalid-command')
   return sendJson(response, 200, command)
+}
+
+const createRecipeDraft = async (request, response) => {
+  const body = JSON.parse((await readBody(request, 256 * 1024)).toString('utf8') || '{}')
+  const prompt = String(body.prompt || '').trim()
+  if (!prompt) return sendJson(response, 400, { error: 'Describe the recipe you want to make.' })
+  const { commandModel } = getConfig()
+  const result = await openAIRequest('/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: commandModel,
+      instructions: [
+        'Create a practical, complete cooking recipe from the user request.',
+        'Return source-style ingredient amounts without converting them; Hub will normalize measurements deterministically.',
+        'Use common units such as lb, oz, kg, g, cup, tbsp, tsp, ml, l, clove, scallion, onion, pepper, can, or piece.',
+        'Use to_taste, optional, or non_scaling when a precise amount should not be invented.',
+        'Ingredient step indexes are zero-based. Include explicit cooking durations in step instructions only when appropriate.',
+        'Keep the response concise and suitable for a screen-first kitchen app.',
+      ].join(' '),
+      input: prompt,
+      text: { format: { type: 'json_schema', name: 'hub_recipe_draft', strict: true, schema: recipeDraftSchema } },
+    }),
+  })
+  const outputText = result.output_text || result.output
+    ?.flatMap((item) => item.content || [])
+    .filter((item) => item.type === 'output_text')
+    .map((item) => item.text)
+    .join('')
+  if (!outputText) throw new Error('Recipe Lab returned no structured recipe.')
+  return sendJson(response, 200, JSON.parse(outputText))
 }
 
 const contentTypes = {
@@ -447,6 +552,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'PUT' && request.url === '/api/settings/openai-key') return await saveOpenAIKey(request, response)
     if (request.method === 'PUT' && request.url === '/api/settings/wake-phrase') return await saveWakePhrase(request, response)
+    if (request.method === 'GET' && request.url === '/api/weather') return sendJson(response, 200, await getWeather())
+    if (request.method === 'GET' && request.url === '/api/calendar/list') return await listCalendars(request, response)
+    if (request.method === 'PUT' && request.url === '/api/calendar/selection') return await selectCalendar(request, response)
     if (request.method === 'GET' && request.url === '/api/calendar/status') return await calendarStatus(request, response)
     if (request.method === 'GET' && request.url === '/api/calendar/oauth/start') return await startGoogleOAuth(request, response)
     if (request.method === 'GET' && request.url?.startsWith('/api/calendar/oauth/callback')) return await finishGoogleOAuth(request, response)
@@ -458,11 +566,16 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url?.startsWith('/api/calendar/today')) return await listTodayCalendarEvents(request, response)
     if (request.method === 'DELETE' && request.url === '/api/calendar/connection') return await disconnectGoogleCalendar(request, response)
+    if (request.method === 'GET' && (request.url === '/api/recipes' || request.url?.startsWith('/api/recipes/search'))) return await listRecipes(request, response)
+    if (request.method === 'GET' && /^\/api\/recipes\/[^/]+$/.test(request.url || '')) return await getRecipe(request, response)
+    if (request.method === 'POST' && request.url === '/api/recipes') return await saveRecipe(request, response)
+    if (request.method === 'PUT' && /^\/api\/recipes\/[^/]+$/.test(request.url || '')) return await saveRecipe(request, response)
     if (request.method === 'GET' && request.url === '/api/wake/events') return openWakeEvents(request, response)
     if (request.method === 'POST' && request.url === '/api/wake/audio') return await forwardWakeAudio(request, response)
     if (request.method === 'POST' && request.url === '/api/wake') return await publishWakeEvent(request, response)
     if (request.method === 'POST' && request.url?.startsWith('/api/voice/transcribe')) return await transcribe(request, response)
     if (request.method === 'POST' && request.url === '/api/voice/command') return await createCommand(request, response)
+    if (request.method === 'POST' && request.url === '/api/recipes/generate') return await createRecipeDraft(request, response)
     if (request.url?.startsWith('/api/')) return sendJson(response, 404, { error: 'Not found.' })
     return await serveStatic(request, response)
   } catch (error) {
@@ -480,6 +593,6 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, '127.0.0.1', () => {
   const { configured } = getConfig()
-  console.log(`Orka voice server listening on http://127.0.0.1:${port}`)
+  console.log(`Hub voice server listening on http://127.0.0.1:${port}`)
   console.log(configured ? 'OpenAI voice service configured.' : 'OPENAI_API_KEY is not set; health checks work but voice requests will return 503.')
 })

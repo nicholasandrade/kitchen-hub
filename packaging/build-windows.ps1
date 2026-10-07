@@ -95,7 +95,7 @@ $appStage = Join-Path $stageRoot 'app'
 $wakeStage = Join-Path $stageRoot 'wake'
 New-Item -ItemType Directory -Force -Path (Join-Path $appStage 'runtime'), (Join-Path $appStage 'server'), $wakeStage | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'dist') -Destination (Join-Path $appStage 'dist') -Recurse
-Copy-Item -LiteralPath (Join-Path $repoRoot 'server\index.mjs') -Destination (Join-Path $appStage 'server\index.mjs')
+Get-ChildItem -Path (Join-Path $repoRoot 'server\*.mjs') | Where-Object { $_.Name -notlike '*.test.mjs' } | Copy-Item -Destination (Join-Path $appStage 'server')
 Copy-Item -LiteralPath (Join-Path $repoRoot '.env.example') -Destination (Join-Path $appStage '.env.example')
 @{ googleClientId = $GoogleClientId; googleClientSecret = $GoogleClientSecret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $nodeSource 'node.exe') -Destination (Join-Path $appStage 'runtime\node.exe')

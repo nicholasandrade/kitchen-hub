@@ -37,3 +37,6 @@ artifacts/
 *.njsproj
 *.sln
 *.sw?
+
+calendar-selections.json
+calendar-selections.json.tmp

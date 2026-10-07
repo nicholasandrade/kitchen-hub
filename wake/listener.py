@@ -1,4 +1,4 @@
-"""Local Orka wake-word listener powered by sherpa-onnx."""
+"""Local Hub wake-word listener powered by sherpa-onnx."""
 
 from __future__ import annotations
 
@@ -44,9 +44,9 @@ def notify_hub(keyword: str) -> None:
     try:
         with urllib.request.urlopen(request, timeout=2) as response:
             delivery = json.loads(response.read().decode("utf-8"))
-        print(f"Wake phrase detected; notified {delivery.get('delivered', 0)} Orka client(s).", flush=True)
+        print(f"Wake phrase detected; notified {delivery.get('delivered', 0)} Hub client(s).", flush=True)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        print(f"Wake phrase detected, but the Orka server is unavailable: {error}", file=sys.stderr, flush=True)
+        print(f"Wake phrase detected, but the Hub server is unavailable: {error}", file=sys.stderr, flush=True)
 
 
 def create_spotter() -> sherpa_onnx.KeywordSpotter:
@@ -78,7 +78,7 @@ def build_keyword(phrase: str) -> None:
 
 
 def main() -> None:
-    active_phrase = ACTIVE_PHRASE_FILE.read_text(encoding="utf-8").strip() if ACTIVE_PHRASE_FILE.is_file() else "Orka"
+    active_phrase = ACTIVE_PHRASE_FILE.read_text(encoding="utf-8").strip() if ACTIVE_PHRASE_FILE.is_file() else "Hub"
     build_keyword(active_phrase)
     spotter_state = {"spotter": create_spotter(), "stream": None, "phrase": active_phrase}
     spotter_state["stream"] = spotter_state["spotter"].create_stream()
@@ -164,7 +164,7 @@ def main() -> None:
             return
 
     server = ThreadingHTTPServer((LISTENER_HOST, LISTENER_PORT), AudioHandler)
-    print(f"Orka wake listener ready on http://{LISTENER_HOST}:{LISTENER_PORT}/audio", flush=True)
+    print(f"Hub wake listener ready on http://{LISTENER_HOST}:{LISTENER_PORT}/audio", flush=True)
     print(f'Say “{active_phrase}” to open a seven-second command window.', flush=True)
     server.serve_forever()
 

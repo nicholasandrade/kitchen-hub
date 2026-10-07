@@ -1,28 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { localRecipeRepository, type RecipeDraft } from './recipeRepository'
+import { localRecipeRepository, sheetsRecipeRepository, type RecipeDraft } from './recipeRepository'
 import { localCookingSessionRepository } from './cookingSessionRepository'
-import { WeatherCard } from './WeatherCard'
-import { demoWeather } from './weatherData'
+import { LiveWeatherCard } from './home/LiveWeatherCard'
+import { CalendarAgenda } from './home/CalendarAgenda'
+import type { CalendarEvent } from './home/calendarPresentation'
+import './home/home.css'
 import { AttentionLayer, type AttentionReminder } from './components/AttentionLayer'
 import { LiveDock } from './components/LiveDock'
 import { TimerView } from './components/TimerView'
 import { formatTimerDuration, timerService } from './timers/timerService'
+import {
+  formatIngredientQuantity,
+  getRecipeScaleFactor,
+  normalizeRecipe,
+  scaleRecipe,
+  validateRecipe,
+  type Recipe,
+  type RecipeIngredient,
+  type ScaleRequest,
+} from './recipe'
 
-export type Ingredient = { name: string; amount: number; unit: string; note?: string; steps: number[] }
-export type Recipe = {
-  id: string; name: string; description: string; minutes: number; baseServings: number
-  calories: number; protein: number; ingredients: Ingredient[]; steps: string[]
-}
+export type Ingredient = RecipeIngredient
+export type { Recipe }
 type PendingEdit =
   | { kind: 'ingredient-choice'; ingredient: Ingredient }
   | { kind: 'addition-details'; name: string; stepIndex?: number; amount?: number; unit?: string; note?: string }
 type VoiceMessage = { id: number; role: 'user' | 'assistant'; text: string }
 type VoicePhase = 'off' | 'ready' | 'hearing' | 'processing' | 'error'
-type CalendarEvent = {
-  id: string; title: string; start: string; end: string; allDay: boolean
-  location: string; description: string; link: string
-}
+type HubCalendar = { id: string; name: string; primary: boolean; accessRole?: string; backgroundColor?: string; selected: boolean }
 type CalendarConnectionState = 'loading' | 'setup' | 'ready' | 'connecting' | 'connected' | 'error'
 type CalendarLoadState = 'idle' | 'loading' | 'ready' | 'empty' | 'error'
 const READY_VOICE_MESSAGE = 'Ready for a voice command.'
@@ -32,7 +38,8 @@ type VoiceCommand = {
     'check_ingredient' | 'uncheck_ingredient' | 'scroll_ingredients' |
     'remove_ingredient' | 'save_changes' | 'discard_changes' |
     'pause_listening' | 'create_timer' | 'timer_remaining' |
-    'pause_timer' | 'resume_timer' | 'add_timer_time' | 'cancel_timer' | 'unknown'
+    'pause_timer' | 'resume_timer' | 'add_timer_time' | 'cancel_timer' |
+    'scale_anchor' | 'start_step_timer' | 'unknown'
   step: number | null
   servings: number | null
   delta: number | null
@@ -40,12 +47,14 @@ type VoiceCommand = {
   direction: 'up' | 'down' | null
   duration_seconds: number | null
   timer_label: string | null
+  quantity: number | null
+  unit: string | null
   response: string
   confidence: number
 }
 type ThemeId = 'architectural' | 'warm' | 'mineral' | 'cyberpunk' | 'retro' | 'terracotta' | 'vaporwave' | 'seventies' | 'candy' | 'blueprint' | 'tavern'
 
-const DEFAULT_WAKE_PHRASE = 'Orka'
+const DEFAULT_WAKE_PHRASE = 'Hub'
 const WAKE_WINDOW_MS = 7000
 const monotonicNow = () => performance.now()
 
@@ -62,7 +71,7 @@ const themeOptions: Array<{ id: ThemeId; name: string; description: string }> = 
   { id: 'blueprint', name: 'Blueprint', description: 'Deep cobalt, drafting lines, and chalk white.' },
   { id: 'tavern', name: 'Adventurer’s Tavern', description: 'Aged parchment, dark oak, and candlelit brass.' },
 ]
-const recipe: Recipe = {
+const recipe = normalizeRecipe({
   id: 'miso-ginger-cod',
   name: 'Miso Ginger Cod Bowls',
   description: 'Flaky cod, gingery greens, and rice with a glossy miso glaze.',
@@ -96,7 +105,7 @@ const recipe: Recipe = {
     'Sauté the cabbage over medium-high heat for 4 minutes. Add the remaining glaze and cook for 1 minute.',
     'Divide rice and cabbage between bowls. Add cucumber and avocado, then top with cod, scallions, sesame seeds, nori, and lime.',
   ],
-}
+})
 
 const recipes: Recipe[] = [
   recipe,
@@ -145,7 +154,7 @@ const recipes: Recipe[] = [
       'Toss the noodles with the dressing, tofu, and bok choy. Finish with scallions and sesame seeds.',
     ],
   },
-]
+].map(normalizeRecipe)
 
 const SMART_RECIPE_EDITING_ENABLED = false
 
@@ -163,8 +172,13 @@ const unitAliases: Record<string, string> = {
 
 const cloneRecipe = (source: Recipe): Recipe => ({
   ...source,
-  ingredients: source.ingredients.map((item) => ({ ...item, steps: [...item.steps] })),
+  ingredients: source.ingredients.map((item) => ({
+    ...item,
+    quantity: typeof item.quantity === 'object' ? { ...item.quantity } : item.quantity,
+    steps: [...item.steps],
+  })),
   steps: [...source.steps],
+  structuredSteps: source.structuredSteps?.map((item) => ({ ...item })),
 })
 
 const parseSpokenNumber = (value?: string) => value ? (Number(value) || numberWords[value]) : undefined
@@ -206,6 +220,21 @@ function formatAmount(amount: number) {
   return amount.toFixed(1).replace(/\.0$/, '')
 }
 
+const formatRecipeTime = (minutes: number) => {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return `${hours} hr${hours === 1 ? '' : 's'}${remainder ? ` ${remainder} min` : ''}`
+}
+
+const formatIngredientNote = (note?: string) => note
+  ?.split(';')
+  .map((part) => part.trim())
+  .filter((part) => part
+    && !/^estimated from\b/i.test(part)
+    && !/^~?[\d\s./¼½¾⅓⅔⅛⅜⅝⅞-]+\s*(?:g|kg|oz|lb)\s*\//i.test(part))
+  .join(' · ') ?? ''
+
 const parseTimerDurationSeconds = (command: string) => {
   const match = command.match(/\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight)\s*(hours?|minutes?|mins?|seconds?|secs?)\b/i)
   if (!match) return null
@@ -219,54 +248,13 @@ const parseTimerDurationSeconds = (command: string) => {
 const parseTimerLabel = (command: string) => command.match(/\bset\s+(?:a\s+)?(.+?)\s+timer\b/i)?.[1]?.trim() || 'Timer'
 
 
-const createFixtureDraft = (prompt: string): RecipeDraft => {
-  const vegetarian = /vegetarian|meatless|tofu|beans/i.test(prompt)
-  const recipeName = vegetarian ? 'Crispy Chickpea Herb Bowls' : 'Lemon Pepper Chicken & Greens'
-  const protein = vegetarian ? 21 : 46
-  const mainIngredient: Ingredient = vegetarian
-    ? { name: 'chickpeas', amount: 2, unit: 'cans', note: 'drained and dried', steps: [0, 2] }
-    : { name: 'chicken thighs', amount: 1.5, unit: 'lb', steps: [0, 2] }
-  const draftRecipe: Recipe = {
-    id: `lab-${Date.now()}`,
-    name: recipeName,
-    description: vegetarian
-      ? 'Crisp chickpeas, lemony greens, and herbed yogurt over warm grains.'
-      : 'Golden chicken, tender greens, and a bright lemon pan sauce for a practical weeknight dinner.',
-    minutes: 35,
-    baseServings: 4,
-    calories: vegetarian ? 510 : 590,
-    protein,
-    ingredients: [
-      mainIngredient,
-      { name: 'lemon', amount: 1, unit: '', note: 'zested and juiced', steps: [0, 2] },
-      { name: 'garlic', amount: 3, unit: 'cloves', note: 'finely grated', steps: [0] },
-      { name: 'mixed greens', amount: 6, unit: 'cups', steps: [1, 2] },
-      { name: 'cooked grains', amount: 3, unit: 'cups', steps: [2] },
-      { name: 'plain yogurt', amount: 0.5, unit: 'cup', steps: [2] },
-    ],
-    steps: [
-      vegetarian
-        ? 'Season the chickpeas with lemon zest, garlic, salt, and pepper. Sear until crisp and deeply golden.'
-        : 'Season the chicken with lemon zest, garlic, salt, and plenty of black pepper. Sear until deeply golden and cooked through.',
-      'Wilt the greens in the same pan with a splash of water and a pinch of salt.',
-      `Spoon the grains into bowls. Add the greens and ${vegetarian ? 'chickpeas' : 'sliced chicken'}, then finish with lemon juice and yogurt.`,
-    ],
-  }
-  return {
-    id: draftRecipe.id,
-    prompt,
-    response: `I shaped that into ${recipeName}. It stays weeknight-friendly, uses one pan, and leaves the final seasoning flexible. Review the draft before you save it.`,
-    recipe: draftRecipe,
-    updatedAt: new Date().toISOString(),
-  }
-}
-
 function App() {
   const [restoredSession] = useState(() => localCookingSessionRepository.load(recipe))
   const [baseRecipe, setBaseRecipe] = useState<Recipe>(() => restoredSession?.baseRecipe ?? recipe)
   const [workingRecipe, setWorkingRecipe] = useState<Recipe>(() => restoredSession?.workingRecipe ?? cloneRecipe(recipe))
   const [hasActiveRecipe, setHasActiveRecipe] = useState(() => Boolean(restoredSession))
   const [servings, setServings] = useState(() => restoredSession?.servings ?? recipe.baseServings)
+  const [scaleRequest, setScaleRequest] = useState<ScaleRequest>(() => restoredSession?.scaleRequest ?? { mode: 'servings', servings: restoredSession?.servings ?? recipe.baseServings })
   const [step, setStep] = useState(() => restoredSession?.step ?? 0)
   const [checked, setChecked] = useState<Set<number>>(() => new Set(restoredSession?.checkedIngredients ?? []))
   const [alwaysListening, setAlwaysListening] = useState(false)
@@ -284,6 +272,7 @@ function App() {
     const saved = localRecipeRepository.loadSavedRecipes()
     return [...recipes, ...saved.filter((savedRecipe) => !recipes.some((item) => item.id === savedRecipe.id))]
   })
+  const [recipeSyncStatus, setRecipeSyncStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [activeView, setActiveView] = useState<'home' | 'cooking' | 'recipe-lab' | 'timer'>('home')
   const [labDraft, setLabDraft] = useState<RecipeDraft | null>(() => localRecipeRepository.loadDraft())
   const [labPrompt, setLabPrompt] = useState('')
@@ -298,8 +287,13 @@ function App() {
   const [wakePhraseStatus, setWakePhraseStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [wakePhraseMessage, setWakePhraseMessage] = useState('')
   const [calendarConnection, setCalendarConnection] = useState<CalendarConnectionState>('loading')
+  const [recipesAuthorized, setRecipesAuthorized] = useState(false)
   const [calendarLoadState, setCalendarLoadState] = useState<CalendarLoadState>('idle')
+  const [hubCalendars, setHubCalendars] = useState<HubCalendar[]>([])
+  const [calendarSaving, setCalendarSaving] = useState(false)
+  const [calendarSelectionError, setCalendarSelectionError] = useState('')
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
+  const [futureCalendarEvents, setFutureCalendarEvents] = useState<CalendarEvent[]>([])
   const [calendarMessage, setCalendarMessage] = useState('')
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('kitchen-hub:theme')
@@ -328,7 +322,12 @@ function App() {
   const pendingEditRef = useRef<PendingEdit | null>(null)
   const servingsRef = useRef(servings)
 
-  const scale = servings / workingRecipe.baseServings
+  const scaledRecipe = useMemo(() => {
+    try { return scaleRecipe(workingRecipe, scaleRequest) } catch { return workingRecipe }
+  }, [scaleRequest, workingRecipe])
+  const scale = useMemo(() => {
+    try { return getRecipeScaleFactor(workingRecipe, scaleRequest) } catch { return 1 }
+  }, [scaleRequest, workingRecipe])
   const progress = ((step + 1) / workingRecipe.steps.length) * 100
   const currentInstruction = workingRecipe.steps[step]
   const isLongStep = currentInstruction.length > 115
@@ -346,8 +345,8 @@ function App() {
     || voicePhase === 'error'
     || (currentVoiceMessage?.text !== READY_VOICE_MESSAGE && currentVoiceMessage?.text.length > 72)
   const scaledIngredients = useMemo(
-    () => workingRecipe.ingredients.map((item) => ({ ...item, amount: item.amount * scale })),
-    [scale, workingRecipe.ingredients],
+    () => scaledRecipe.ingredients,
+    [scaledRecipe.ingredients],
   )
   const displayedIngredients = useMemo(
     () => scaledIngredients
@@ -366,11 +365,6 @@ function App() {
     title: reminderEvent.title,
     dueAt: reminderEvent.allDay ? new Date().setHours(0, 0, 0, 0) : new Date(reminderEvent.start).getTime(),
   } : null, [reminderEvent])
-
-  const formatCalendarTime = (event: CalendarEvent) => {
-    if (event.allDay) return 'All day'
-    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(event.start))
-  }
 
   useEffect(() => {
     stepRef.current = step
@@ -392,6 +386,57 @@ function App() {
     wakePhraseRef.current = wakePhrase
   }, [wakePhrase])
 
+  const mergeLibraryRecipes = (external: Recipe[]) => [
+    ...recipes,
+    ...external.filter((candidate) => !recipes.some((builtIn) => builtIn.id === candidate.id)),
+  ]
+
+  const applyExternalRecipeMetadata = (external: Recipe[]) => {
+    const match = external.find((candidate) => candidate.id === workingRecipeRef.current.id)
+    if (!match) return
+    const previousBaseServings = workingRecipeRef.current.baseServings
+    const withMetadata = (current: Recipe) => ({
+      ...current,
+      minutes: match.minutes,
+      baseServings: match.baseServings,
+      calories: match.calories,
+      protein: match.protein,
+      scaling: current.scaling ? { ...current.scaling, baseServings: match.baseServings } : match.scaling,
+    })
+    setBaseRecipe((current) => current.id === match.id ? withMetadata(current) : current)
+    setWorkingRecipe((current) => {
+      if (current.id !== match.id) return current
+      const next = withMetadata(current)
+      workingRecipeRef.current = next
+      return next
+    })
+    if (scaleRequest.mode === 'servings' && scaleRequest.servings === previousBaseServings) {
+      applyServingScale(match.baseServings)
+    }
+  }
+
+  const refreshRecipeLibrary = async () => {
+    setRecipeSyncStatus('loading')
+    try {
+      const external = await sheetsRecipeRepository.refresh()
+      setLibraryRecipes(mergeLibraryRecipes(external))
+      applyExternalRecipeMetadata(external)
+      setRecipeSyncStatus('ready')
+    } catch {
+      setRecipeSyncStatus('error')
+    }
+  }
+
+  useEffect(() => {
+    void sheetsRecipeRepository.list().then((external) => {
+      if (external.length) setLibraryRecipes(mergeLibraryRecipes(external))
+      applyExternalRecipeMetadata(external)
+      setRecipeSyncStatus('ready')
+    }).catch(() => setRecipeSyncStatus('error'))
+    // Recipe sync intentionally runs once when the app starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!hasActiveRecipe) return
     localCookingSessionRepository.save({
@@ -399,10 +444,11 @@ function App() {
       workingRecipe,
       step,
       servings,
+      scaleRequest,
       checkedIngredients: [...checked],
       hasDraftChanges,
     })
-  }, [baseRecipe, checked, hasActiveRecipe, hasDraftChanges, servings, step, workingRecipe])
+  }, [baseRecipe, checked, hasActiveRecipe, hasDraftChanges, scaleRequest, servings, step, workingRecipe])
 
   useEffect(() => {
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: 'smooth' })
@@ -454,6 +500,24 @@ function App() {
     workingRecipeRef.current = next
     setWorkingRecipe(next)
     setHasDraftChanges(true)
+  }
+
+  const applyServingScale = (value: number) => {
+    const bounded = Math.max(1, Math.min(12, value))
+    servingsRef.current = bounded
+    setServings(bounded)
+    setScaleRequest({ mode: 'servings', servings: bounded })
+  }
+
+  const applyAnchorScale = (quantity: number, unit: string, ingredient?: string | null) => {
+    try {
+      const nextRequest: ScaleRequest = { mode: 'anchor', quantity, unit, ingredient: ingredient || undefined }
+      scaleRecipe(workingRecipeRef.current, nextRequest)
+      setScaleRequest(nextRequest)
+      showVoiceStatus(`Scaled from the original recipe to ${formatAmount(quantity)} ${unit}${ingredient ? ` of ${ingredient}` : ''}.`)
+    } catch (error) {
+      showVoiceStatus(error instanceof Error ? error.message : 'This recipe cannot be scaled by its main ingredient yet.')
+    }
   }
 
   const requestAdditionDetails = (addition: Extract<PendingEdit, { kind: 'addition-details' }>) => {
@@ -657,8 +721,7 @@ function App() {
     if (servingMatch) {
       const value = parseSpokenNumber(servingMatch[1])
       if (value) {
-        setServings(value)
-        servingsRef.current = value
+        applyServingScale(value)
         setNotice(`Scaled for ${value} ${value === 1 ? 'person' : 'people'}`)
         showVoiceStatus(`Adjusting the recipe for ${value} ${value === 1 ? 'person' : 'people'}.`)
         return
@@ -673,8 +736,7 @@ function App() {
         ? spokenValue
         : servingsRef.current + direction * (spokenValue ?? 1)
       const bounded = Math.max(1, Math.min(8, next))
-      servingsRef.current = bounded
-      setServings(bounded)
+      applyServingScale(bounded)
       setNotice(`Scaled for ${bounded} ${bounded === 1 ? 'person' : 'people'}`)
       showVoiceStatus(`Adjusting the recipe for ${bounded} ${bounded === 1 ? 'person' : 'people'}.`)
       return
@@ -718,6 +780,11 @@ function App() {
         name: haveMatch[3].trim(), amount: parseSpokenNumber(haveMatch[1]) ?? 1,
         unit: haveMatch[2] ? unitAliases[haveMatch[2]] : '', steps: [],
       }
+      const anchorId = currentRecipe.scaling?.anchorIngredientId
+      if (ingredient && anchorId && ingredient.id === anchorId && offered.unit) {
+        applyAnchorScale(offered.amount, offered.unit, ingredient.name)
+        return
+      }
       if (ingredient) {
         updateDraft((current) => ({ ...current, ingredients: current.ingredients.map((item, index) => index === ingredientIndex ? { ...item, amount: offered.amount, unit: offered.unit } : item) }))
         setNotice(`${ingredient.name} amount updated`)
@@ -747,8 +814,8 @@ function App() {
       return
     }
     if (ingredient && /\b(how much|amount|quantity)\b/.test(command)) {
-      const currentScale = servingsRef.current / currentRecipe.baseServings
-      const response = `${formatAmount(ingredient.amount * currentScale)} ${ingredient.unit} ${ingredient.name}`.trim()
+      const scaledIngredient = scaledRecipe.ingredients[ingredientIndex] ?? ingredient
+      const response = `${formatIngredientQuantity(scaledIngredient)} ${ingredient.name}`.trim()
       setNotice(response)
       showVoiceStatus(response)
       return
@@ -781,21 +848,20 @@ function App() {
         break
       case 'set_servings':
         if (command.servings !== null) {
-          const next = Math.max(1, Math.min(12, command.servings))
-          servingsRef.current = next
-          setServings(next)
+          applyServingScale(command.servings)
         }
         break
       case 'adjust_servings': {
-        const next = Math.max(1, Math.min(12, servingsRef.current + (command.delta ?? 0)))
-        servingsRef.current = next
-        setServings(next)
+        applyServingScale(servingsRef.current + (command.delta ?? 0))
         break
       }
+      case 'scale_anchor':
+        if (command.quantity && command.unit) applyAnchorScale(command.quantity, command.unit, command.ingredient)
+        break
       case 'ingredient_quantity':
         if (ingredient) {
-          const currentScale = servingsRef.current / currentRecipe.baseServings
-          command.response = `${formatAmount(ingredient.amount * currentScale)} ${ingredient.unit} ${ingredient.name}`.trim()
+          const scaledIngredient = scaledRecipe.ingredients[ingredientIndex] ?? ingredient
+          command.response = `${formatIngredientQuantity(scaledIngredient)} ${ingredient.name}`.trim()
         }
         break
       case 'check_ingredient':
@@ -848,6 +914,18 @@ function App() {
           })
         }
         break
+      case 'start_step_timer': {
+        const currentStep = currentRecipe.structuredSteps?.[stepRef.current]
+        if (currentStep?.timerSeconds) {
+          timerService.createTimer({
+            label: command.timer_label || `${currentRecipe.name} · Step ${stepRef.current + 1}`,
+            durationMs: currentStep.timerSeconds * 1000,
+            source: 'cooking',
+          })
+          command.response = `${formatTimerDuration(currentStep.timerSeconds * 1000)} timer started for this step.`
+        } else command.response = 'This step does not include a timer.'
+        break
+      }
       case 'timer_remaining': {
         const timer = findVoiceTimer(command.timer_label)
         command.response = timer
@@ -917,6 +995,8 @@ function App() {
             step: stepRef.current + 1,
             stepCount: workingRecipeRef.current.steps.length,
             servings: servingsRef.current,
+            scaling: workingRecipeRef.current.scaling,
+            currentStepTimerSeconds: workingRecipeRef.current.structuredSteps?.[stepRef.current]?.timerSeconds ?? null,
             hasDraftChanges,
             activeTimers: timerService.getActiveTimers().map((timer) => ({
               label: timer.label,
@@ -1054,7 +1134,7 @@ function App() {
     if (shouldListenRef.current || micStreamRef.current) return
     if (!window.MediaRecorder) {
       setNotice('Voice recording is unavailable')
-      const response = 'This browser cannot record microphone audio. Open Orka in current Chrome or Edge.'
+      const response = 'This browser cannot record microphone audio. Open Hub in current Chrome or Edge.'
       setTranscript(response)
       addVoiceMessage('assistant', response)
       return
@@ -1130,6 +1210,7 @@ function App() {
     setWorkingRecipe(fresh)
     servingsRef.current = selected.baseServings
     setServings(selected.baseServings)
+    setScaleRequest({ mode: 'servings', servings: selected.baseServings })
     stepRef.current = 0
     setStep(0)
     setChecked(new Set())
@@ -1170,6 +1251,7 @@ function App() {
       if (!response.ok) throw new Error(result.error || 'Could not reach the local calendar service.')
       const nextState: CalendarConnectionState = result.connected ? 'connected' : result.configured ? 'ready' : 'setup'
       setCalendarConnection(nextState)
+      setRecipesAuthorized(Boolean(result.recipesAuthorized))
       setCalendarMessage('')
       return nextState
     } catch (error) {
@@ -1185,35 +1267,65 @@ function App() {
       const start = new Date()
       start.setHours(0, 0, 0, 0)
       const end = new Date(start)
-      end.setDate(end.getDate() + 1)
+      end.setFullYear(end.getFullYear() + 1)
       const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
       const query = new URLSearchParams({ timeMin: start.toISOString(), timeMax: end.toISOString(), timeZone })
       const response = await fetch(`/api/calendar/today?${query}`)
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Today’s calendar could not be loaded.')
       const events = Array.isArray(result.events) ? result.events as CalendarEvent[] : []
-      setCalendarEvents(events)
-      setCalendarLoadState(events.length ? 'ready' : 'empty')
-      setCalendarMessage('')
+      setHubCalendars(Array.isArray(result.calendars) ? result.calendars : [])
+      const tomorrow = new Date(start)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const eventStart = (event: CalendarEvent) => new Date(event.allDay ? `${event.start}T00:00:00` : event.start).getTime()
+      setCalendarEvents(events.filter(event => eventStart(event) < tomorrow.getTime()))
+      setFutureCalendarEvents(events.filter(event => eventStart(event) >= tomorrow.getTime()))
+      setCalendarLoadState(events.length ? 'ready' : result.errors?.length ? 'error' : 'empty')
+      setCalendarMessage(result.errors?.length ? `Could not refresh: ${result.errors.map((item: { calendarName: string }) => item.calendarName).join(', ')}. Other calendars are shown.` : '')
     } catch (error) {
       setCalendarLoadState('error')
       setCalendarMessage(error instanceof Error ? error.message : 'Today’s calendar could not be loaded.')
     }
   }
 
+  const selectHubCalendar = async (calendar: HubCalendar) => {
+    setCalendarSaving(true)
+    setCalendarSelectionError('')
+    try {
+      const response = await fetch('/api/calendar/selection', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: calendar.id, selected: !calendar.selected }),
+      })
+      if (!response.ok) throw new Error('Calendar selection could not be saved.')
+      await loadTodayCalendar()
+    } catch (error) {
+      setCalendarSelectionError(error instanceof Error ? error.message : 'Calendar selection could not be saved.')
+    } finally { setCalendarSaving(false) }
+  }
+
   const connectGoogleCalendar = () => {
     setCalendarConnection('connecting')
-    setCalendarMessage('Complete the Google sign-in window to connect your calendar.')
+    setRecipesAuthorized(false)
+    setCalendarMessage('Complete the Google sign-in window to connect Calendar and Hub Recipes.')
     window.open('/api/calendar/oauth/start', 'kitchen-hub-google-calendar', 'popup=yes,width=620,height=760')
     const startedAt = Date.now()
     const poll = window.setInterval(async () => {
-      const state = await loadCalendarStatus()
-      if (state === 'connected') {
+      try {
+        const response = await fetch('/api/calendar/status')
+        const result = await response.json()
+        if (response.ok && result.connected && result.recipesAuthorized) {
+          window.clearInterval(poll)
+          setCalendarConnection('connected')
+          setRecipesAuthorized(true)
+          setCalendarMessage('')
+          void loadTodayCalendar()
+          void refreshRecipeLibrary()
+          return
+        }
+      } catch { /* keep polling while the sign-in window is active */ }
+      if (Date.now() - startedAt > 120_000) {
         window.clearInterval(poll)
-        void loadTodayCalendar()
-      } else if (Date.now() - startedAt > 120_000) {
-        window.clearInterval(poll)
-        setCalendarConnection(state === 'error' ? 'error' : 'ready')
+        void loadCalendarStatus()
       }
     }, 1500)
   }
@@ -1223,6 +1335,7 @@ function App() {
       const response = await fetch('/api/calendar/connection', { method: 'DELETE' })
       if (!response.ok) throw new Error('Google Calendar could not be disconnected.')
       setCalendarConnection('ready')
+      setRecipesAuthorized(false)
       setCalendarLoadState('idle')
       setCalendarEvents([])
       setCalendarMessage('Google Calendar is disconnected.')
@@ -1326,22 +1439,61 @@ function App() {
     }
   }
 
-  const runLabPrompt = (prompt = labPrompt) => {
+  const runLabPrompt = async (prompt = labPrompt) => {
     const cleanPrompt = prompt.trim()
     if (!cleanPrompt || labStatus === 'loading') return
     setLabPrompt(cleanPrompt)
     setLabStatus('loading')
-    window.setTimeout(() => {
-      try {
-        const nextDraft = createFixtureDraft(cleanPrompt)
-        localRecipeRepository.saveDraft(nextDraft)
-        setLabDraft(nextDraft)
-        setLabPrompt('')
-        setLabStatus('idle')
-      } catch {
-        setLabStatus('error')
+    try {
+      const response = await fetch('/api/recipes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: cleanPrompt }),
+      })
+      const generated = await response.json()
+      if (!response.ok) throw new Error(generated.error || 'Recipe Lab could not build that recipe.')
+      const id = `${generated.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`
+      const normalized = normalizeRecipe({
+        id,
+        name: generated.name,
+        description: generated.description,
+        minutes: generated.minutes,
+        baseServings: generated.baseServings,
+        calories: generated.calories,
+        protein: generated.protein,
+        ingredients: generated.ingredients.map((item: { name: string; sourceQuantity: string; sourceUnit: string; notes: string; scalingBehavior: RecipeIngredient['scalingBehavior']; steps: number[] }) => ({
+          name: item.name,
+          ingredient: item.name,
+          amount: 0,
+          quantity: undefined,
+          unit: item.sourceUnit,
+          sourceQuantity: item.sourceQuantity,
+          sourceUnit: item.sourceUnit,
+          note: item.notes || undefined,
+          notes: item.notes || undefined,
+          scalingBehavior: item.scalingBehavior,
+          steps: item.steps,
+        })),
+        steps: generated.steps,
+        servingIdeas: generated.servingIdeas,
+        notes: generated.notes,
+        source: { kind: 'generated', label: cleanPrompt, capturedAt: new Date().toISOString() },
+      })
+      const validation = validateRecipe(normalized)
+      const nextDraft: RecipeDraft = {
+        id,
+        prompt: cleanPrompt,
+        response: generated.response,
+        recipe: { ...normalized, validationWarnings: validation.warnings },
+        updatedAt: new Date().toISOString(),
       }
-    }, 650)
+      localRecipeRepository.saveDraft(nextDraft)
+      setLabDraft(nextDraft)
+      setLabPrompt('')
+      setLabStatus('idle')
+    } catch {
+      setLabStatus('error')
+    }
   }
 
   const discardLabDraft = () => {
@@ -1351,14 +1503,23 @@ function App() {
     setLabStatus('idle')
   }
 
-  const saveLabRecipe = (startCooking: boolean) => {
+  const saveLabRecipe = async (startCooking: boolean) => {
     if (!labDraft) return
-    const savedRecipes = localRecipeRepository.saveRecipe(labDraft.recipe)
-    setLibraryRecipes([...recipes, ...savedRecipes.filter((savedRecipe) => !recipes.some((item) => item.id === savedRecipe.id))])
-    setLabStatus('saved')
-    if (startCooking) {
-      openRecipe(labDraft.recipe)
-      setActiveView('cooking')
+    const normalized = normalizeRecipe(labDraft.recipe)
+    const validation = validateRecipe(normalized)
+    const recipeToSave = { ...normalized, validationWarnings: validation.warnings }
+    setLabStatus('loading')
+    try {
+      await sheetsRecipeRepository.save(recipeToSave)
+      const savedRecipes = localRecipeRepository.saveRecipe(recipeToSave)
+      setLibraryRecipes(mergeLibraryRecipes(savedRecipes))
+      setLabStatus('saved')
+      if (startCooking) {
+        openRecipe(recipeToSave)
+        setActiveView('cooking')
+      }
+    } catch {
+      setLabStatus('error')
     }
   }
 
@@ -1375,21 +1536,25 @@ function App() {
           {voiceStatusLabel}
         </div>
         <div className="topbar-actions">
-          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('recipe-lab')}>Recipe Lab</button> : null}
-          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('timer')}>Timer</button> : null}
-          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setLibraryOpen(true)}>Recipes</button> : null}
+          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('recipe-lab')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6m-5 0v7l-6 9a1.3 1.3 0 0 0 1 2h14a1.3 1.3 0 0 0 1-2l-6-9V3M7 15h10" /></svg><span>Recipe Lab</span></button> : null}
+          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setActiveView('timer')}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="8" /><path d="M9 2h6m-3 0v4m0 4v5l3 2M18 6l2-2" /></svg><span>Timer</span></button> : null}
+          {activeView === 'home' ? <button className="ghost-button" type="button" onClick={() => setLibraryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14a2 2 0 0 1 2 2v16H6a2 2 0 0 1-2-2V3Zm0 14h16M8 7h8M8 11h6" /></svg><span>Recipes</span></button> : null}
+          {activeView === 'home' ? <button className="ghost-button utility-button" type="button" aria-label="Open settings" title="Settings" onClick={openSettings}><svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" />
+          <path d="M19.43 15.1a1.7 1.7 0 0 0 .34 1.88l.06.06-2.79 2.79-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4.14v-.01a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.79-2.79.06-.06a1.7 1.7 0 0 0 .34-1.88A1.7 1.7 0 0 0 3.01 14H3V10h.01a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.79-2.79.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 9.93 3.08V3h4.14v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.79 2.79-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.99 10H21v4h-.01a1.7 1.7 0 0 0-1.56 1.1Z" />
+        </svg><span>Settings</span></button> : null}
           {activeView !== 'home' ? <button className="ghost-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }}>Home</button> : null}
           {activeView === 'cooking' || activeView === 'recipe-lab' ? <button className="ghost-button" type="button" onClick={() => setActiveView(activeView === 'recipe-lab' ? 'cooking' : 'recipe-lab')}>{activeView === 'recipe-lab' ? 'Cook Mode' : 'Recipe Lab'}</button> : null}
-          {activeView === 'cooking' || activeView === 'recipe-lab' ? <button className="ghost-button" type="button" aria-label="Open recipe library" onClick={() => setLibraryOpen(true)}>Recipes</button> : null}
+          {activeView === 'cooking' || activeView === 'recipe-lab' ? <button className="ghost-button" type="button" aria-label="Open recipe library" onClick={() => setLibraryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14a2 2 0 0 1 2 2v16H6a2 2 0 0 1-2-2V3Zm0 14h16M8 7h8M8 11h6" /></svg><span>Recipes</span></button> : null}
         </div>
       </header>
 
-      <button className="settings-button" type="button" aria-label="Open settings" title="Settings" onClick={openSettings}>
+      {activeView !== 'home' ? (<button className="settings-button" type="button" aria-label="Open settings" title="Settings" onClick={openSettings}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" />
           <path d="M19.43 15.1a1.7 1.7 0 0 0 .34 1.88l.06.06-2.79 2.79-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4.14v-.01a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.79-2.79.06-.06a1.7 1.7 0 0 0 .34-1.88A1.7 1.7 0 0 0 3.01 14H3V10h.01a1.7 1.7 0 0 0 1.56-1.03 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.79-2.79.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 9.93 3.08V3h4.14v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.79 2.79-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.99 10H21v4h-.01a1.7 1.7 0 0 0-1.56 1.1Z" />
         </svg>
-      </button>
+      </button>) : null}
 
       {settingsOpen ? (
         <div className="library-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}>
@@ -1397,7 +1562,7 @@ function App() {
             <div className="library-heading">
               <div className="settings-heading-copy">
                 {settingsPage !== 'root' ? <button type="button" className="settings-back" onClick={() => setSettingsPage('root')} aria-label="Back to settings">←</button> : null}
-                <div><p className="eyebrow">{settingsPage === 'root' ? 'Orka' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
+                <div><p className="eyebrow">{settingsPage === 'root' ? 'Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
               </div>
               <button type="button" className="library-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button>
             </div>
@@ -1410,7 +1575,7 @@ function App() {
                 </button>
                 <button type="button" className="settings-row" onClick={() => setSettingsPage('connections')}>
                   <span className="settings-row-icon" aria-hidden="true">⌁</span>
-                  <span className="settings-row-copy"><strong>Connections</strong><small>OpenAI voice and Google Calendar</small></span>
+                  <span className="settings-row-copy"><strong>Connections</strong><small>OpenAI voice, Calendar, and Hub Recipes</small></span>
                   <span className="settings-row-value">{openAIStatus === 'connected' && calendarConnection === 'connected' ? 'All connected' : openAIStatus === 'loading' || calendarConnection === 'loading' ? 'Checking…' : calendarConnection === 'ready' ? 'Google sign-in' : calendarConnection === 'setup' ? 'Calendar unavailable' : 'Setup required'}<b aria-hidden="true">›</b></span>
                 </button>
               </div>
@@ -1430,13 +1595,13 @@ function App() {
                   <span aria-hidden="true" />
                   <div>
                     <strong>{openAIStatus === 'loading' ? 'Checking connection' : openAIStatus === 'connected' ? 'OpenAI connected' : openAIStatus === 'saving' ? 'Verifying key' : openAIStatus === 'error' ? 'Connection needs attention' : 'OpenAI setup required'}</strong>
-                    <p>{openAIStatus === 'connected' ? 'Voice transcription and command understanding are ready.' : openAIStatus === 'loading' ? 'Contacting the local Orka service…' : openAIStatus === 'saving' ? 'The local service is securely checking this key with OpenAI…' : openAIMessage || 'Add an API key to enable production voice control.'}</p>
+                    <p>{openAIStatus === 'connected' ? 'Voice transcription and command understanding are ready.' : openAIStatus === 'loading' ? 'Contacting the local Hub service…' : openAIStatus === 'saving' ? 'The local service is securely checking this key with OpenAI…' : openAIMessage || 'Add an API key to enable production voice control.'}</p>
                   </div>
                 </div>
                 <form className="connection-form" onSubmit={(event) => { event.preventDefault(); void saveOpenAIKey() }}>
                   <label htmlFor="openai-api-key">OpenAI API key</label>
                   <input id="openai-api-key" type="password" value={openAIKey} onChange={(event) => setOpenAIKey(event.target.value)} placeholder={openAIStatus === 'connected' ? 'Enter a new key to replace the current one' : 'sk-…'} autoComplete="off" spellCheck={false} />
-                  <small>The key is saved only in Orka’s private local data file. It is never stored in the browser.</small>
+                  <small>The key is saved only in Hub’s private local data file. It is never stored in the browser.</small>
                   <button type="submit" disabled={!openAIKey.trim() || openAIStatus === 'saving'}>{openAIStatus === 'saving' ? 'Verifying…' : openAIStatus === 'connected' ? 'Replace key' : 'Connect OpenAI'}</button>
                 </form>
                 <form className="connection-form wake-phrase-form" onSubmit={(event) => { event.preventDefault(); void saveWakePhrase() }}>
@@ -1444,7 +1609,7 @@ function App() {
                     <div><label htmlFor="wake-phrase">Wake phrase</label><p>Current phrase: “{wakePhrase}”</p></div>
                     <span className={`wake-save-state ${wakePhraseStatus}`}>{wakePhraseStatus === 'saving' ? 'Updating…' : wakePhraseStatus === 'saved' ? 'Updated' : wakePhraseStatus === 'error' ? 'Try again' : 'Local'}</span>
                   </div>
-                  <input id="wake-phrase" type="text" value={wakePhraseDraft} onChange={(event) => { setWakePhraseDraft(event.target.value); setWakePhraseStatus('idle'); setWakePhraseMessage('') }} maxLength={32} placeholder="Orka" autoComplete="off" spellCheck={false} />
+                  <input id="wake-phrase" type="text" value={wakePhraseDraft} onChange={(event) => { setWakePhraseDraft(event.target.value); setWakePhraseStatus('idle'); setWakePhraseMessage('') }} maxLength={32} placeholder="Hub" autoComplete="off" spellCheck={false} />
                   <small>Use two to four distinctive words that are easy to pronounce. The local wake model reloads immediately.</small>
                   {wakePhraseMessage ? <p className={`connection-feedback ${wakePhraseStatus}`}>{wakePhraseMessage}</p> : null}
                   <button type="submit" disabled={wakePhraseDraft.trim().length < 2 || wakePhraseDraft.trim() === wakePhrase || wakePhraseStatus === 'saving'}>{wakePhraseStatus === 'saving' ? 'Updating…' : 'Change wake phrase'}</button>
@@ -1453,12 +1618,21 @@ function App() {
                   <div className={`connection-status calendar-${calendarConnection}`}>
                     <span aria-hidden="true" />
                     <div>
-                      <strong id="google-calendar-settings-title">{calendarConnection === 'connected' ? 'Google Calendar connected' : calendarConnection === 'connecting' ? 'Connecting Google Calendar' : calendarConnection === 'ready' ? 'Google Calendar' : calendarConnection === 'loading' ? 'Checking Google Calendar' : calendarConnection === 'error' ? 'Calendar needs attention' : 'Google Sign-In unavailable'}</strong>
-                      <p>{calendarConnection === 'connected' ? 'Today’s events and kitchen reminders are available on Home.' : calendarConnection === 'setup' ? 'This build does not have complete Google OAuth credentials yet.' : calendarMessage || 'Sign in once to grant read-only calendar access.'}</p>
+                      <strong id="google-calendar-settings-title">{calendarConnection === 'connected' && recipesAuthorized ? 'Google services connected' : calendarConnection === 'connected' ? 'Hub Recipes needs access' : calendarConnection === 'connecting' ? 'Connecting Google services' : calendarConnection === 'ready' ? 'Google services' : calendarConnection === 'loading' ? 'Checking Google services' : calendarConnection === 'error' ? 'Google connection needs attention' : 'Google Sign-In unavailable'}</strong>
+                      <p>{calendarConnection === 'connected' && recipesAuthorized ? 'Calendar and the Hub Recipes spreadsheet are connected.' : calendarConnection === 'connected' ? 'Reconnect once to grant access to the Hub Recipes spreadsheet. Calendar access will remain available.' : calendarConnection === 'setup' ? 'This build does not have complete Google OAuth credentials yet.' : calendarMessage || 'Sign in once to connect Calendar and Hub Recipes.'}</p>
                     </div>
                   </div>
                   {calendarConnection === 'ready' || calendarConnection === 'connecting' ? <button className="calendar-connect-button" type="button" disabled={calendarConnection === 'connecting'} onClick={connectGoogleCalendar}>{calendarConnection === 'connecting' ? 'Waiting for Google…' : 'Sign in with Google'}</button> : null}
-                  {calendarConnection === 'connected' ? <div className="calendar-connection-actions"><button type="button" onClick={() => void loadTodayCalendar()}>Refresh calendar</button><button type="button" className="secondary" onClick={() => void disconnectGoogleCalendar()}>Disconnect</button></div> : null}
+                  {calendarConnection === 'connected' ? <div className="calendar-connection-actions">{!recipesAuthorized ? <button type="button" onClick={connectGoogleCalendar}>Reconnect Google</button> : <button type="button" onClick={() => void refreshRecipeLibrary()}>Refresh recipes</button>}<button type="button" onClick={() => void loadTodayCalendar()}>Refresh calendar</button><button type="button" className="secondary" onClick={() => void disconnectGoogleCalendar()}>Disconnect</button></div> : null}
+                  {calendarConnection === 'connected' ? <fieldset className="calendar-selection">
+                    <legend>Calendars shown on Home</legend>
+                    {hubCalendars.map(calendar => <label key={calendar.id}>
+                      <input type="checkbox" checked={calendar.selected} disabled={calendarSaving} onChange={() => void selectHubCalendar(calendar)} />
+                      <span>{calendar.name}<small>{calendar.primary ? 'Primary' : calendar.accessRole === 'reader' ? 'Read only' : ''}</small></span>
+                    </label>)}
+                    {!hubCalendars.length ? <button type="button" onClick={() => void loadTodayCalendar()}>Load calendars</button> : null}
+                    {calendarSelectionError ? <p role="alert">{calendarSelectionError}</p> : null}
+                  </fieldset> : null}
                 </section>
               </div>
             )}
@@ -1471,36 +1645,37 @@ function App() {
           <section className="recipe-library" role="dialog" aria-modal="true" aria-labelledby="library-title" onClick={(event) => event.stopPropagation()}>
             <div className="library-heading">
               <div><p className="eyebrow">Recipe library</p><h2 id="library-title">What are you cooking?</h2></div>
-              <button type="button" className="library-close" onClick={() => setLibraryOpen(false)} aria-label="Close recipe library">×</button>
+              <div><button type="button" disabled={recipeSyncStatus === 'loading'} onClick={() => void refreshRecipeLibrary()}>{recipeSyncStatus === 'loading' ? 'Refreshing…' : 'Refresh'}</button><button type="button" className="library-close" onClick={() => setLibraryOpen(false)} aria-label="Close recipe library">×</button></div>
             </div>
             <div className="recipe-grid">
               {libraryRecipes.map((item) => (
                 <button type="button" className={`recipe-tile ${hasActiveRecipe && item.id === baseRecipe.id ? 'active' : ''}`} key={item.id} onClick={() => openRecipe(item)}>
                   <span className="recipe-tile-number">{String(libraryRecipes.indexOf(item) + 1).padStart(2, '0')}</span>
                   <span className="recipe-tile-copy"><strong>{item.name}</strong><small>{item.description}</small></span>
-                  <span className="recipe-tile-meta">{item.minutes} min · {item.baseServings} servings</span>
+                  <span className="recipe-tile-meta">{formatRecipeTime(item.minutes)} · {item.baseServings} {item.baseServings === 1 ? 'serving' : 'servings'} · {item.calories} cal · {item.protein}g protein</span>
                 </button>
               ))}
             </div>
+            {recipeSyncStatus === 'error' ? <p className="connection-feedback error">Showing cached recipes. Reconnect Google in Settings to sync Hub Recipes.</p> : null}
           </section>
         </div>
       ) : null}
 
       {activeView === 'home' ? (
-        <section className="hub-home" aria-label="Orka home">
+        <section className="hub-home" aria-label="Hub home">
           <div className="hub-layout">
             <div className="hub-left-stack">
-              <WeatherCard weather={demoWeather} />
+              <LiveWeatherCard />
               <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
                 {hasActiveRecipe ? (
-                  <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {workingRecipe.minutes} minutes</small></span>
+                  <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {formatRecipeTime(workingRecipe.minutes)}</small></span>
                 ) : (
                   <span className="hub-card-copy"><span className="hub-card-kicker">Ready when you are</span><strong>Choose your next recipe</strong><small>Browse saved recipes or start with an idea from Recipe Lab.</small></span>
                 )}
                 <span className="hub-card-action">{hasActiveRecipe ? 'Open cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
               </button>
             </div>
-            <section className="calendar-card" aria-labelledby="calendar-title">
+            <section className="calendar-card display-panel" aria-labelledby="calendar-title">
               <header className="calendar-heading">
                 <div><p className="eyebrow">Today</p><h2 id="calendar-title">{todayLabel}</h2></div>
                 <span className="calendar-source">Google Calendar</span>
@@ -1515,16 +1690,10 @@ function App() {
                 ) : calendarLoadState === 'empty' ? (
                   <div className="calendar-state"><span className="calendar-state-icon" aria-hidden="true">✓</span><strong>Nothing scheduled today.</strong><p>Your day is clear. New Google Calendar events will appear here.</p><button type="button" onClick={() => void loadTodayCalendar()}>Refresh</button></div>
                 ) : (
-                  <ol className="calendar-events">
-                    {calendarEvents.slice(0, 6).map((event) => (
-                      <li key={event.id}>
-                        <time dateTime={event.start}>{formatCalendarTime(event)}</time>
-                        <span><strong>{event.title}</strong>{event.location ? <small>{event.location}</small> : null}</span>
-                      </li>
-                    ))}
-                  </ol>
+                  <CalendarAgenda events={calendarEvents} futureEvents={futureCalendarEvents} />
                 )}
               </div>
+              {calendarMessage && calendarLoadState !== 'error' ? <p className="calendar-refresh-warning" role="status">{calendarMessage}</p> : null}
             </section>
           </div>
           <LiveDock onOpenTimers={() => setActiveView('timer')} />
@@ -1563,7 +1732,7 @@ function App() {
                 )}
               </div>
 
-              <form className="lab-composer" onSubmit={(event) => { event.preventDefault(); runLabPrompt() }}>
+              <form className="lab-composer" onSubmit={(event) => { event.preventDefault(); void runLabPrompt() }}>
                 <label htmlFor="lab-prompt">Your idea</label>
                 <div>
                   <textarea id="lab-prompt" value={labPrompt} onChange={(event) => setLabPrompt(event.target.value)} placeholder="Try: I want something bright and savory using what I bought this week…" rows={3} />
@@ -1575,16 +1744,17 @@ function App() {
             <aside className="lab-draft" aria-labelledby="lab-draft-title">
               {labDraft ? (
                 <>
-                  <div className="lab-draft-heading"><div><p className="eyebrow">Current draft</p><h2 id="lab-draft-title">{labDraft.recipe.name}</h2></div><span>{labDraft.recipe.minutes} min · {labDraft.recipe.baseServings} servings</span></div>
+                  <div className="lab-draft-heading"><div><p className="eyebrow">Current draft</p><h2 id="lab-draft-title">{labDraft.recipe.name}</h2></div><span>{formatRecipeTime(labDraft.recipe.minutes)} · {labDraft.recipe.baseServings} servings</span></div>
                   <p className="lab-draft-description">{labDraft.recipe.description}</p>
                   <div className="lab-draft-summary">
                     <section><span>Ingredients</span><strong>{labDraft.recipe.ingredients.length}</strong><small>{labDraft.recipe.ingredients.slice(0, 4).map((item) => item.name).join(', ')}</small></section>
                     <section><span>Method</span><strong>{labDraft.recipe.steps.length} steps</strong><small>{labDraft.recipe.steps[0]}</small></section>
                   </div>
+                  {labDraft.recipe.validationWarnings?.length ? <p className="lab-warning">This recipe can be saved, but automatic scaling may be incomplete: {labDraft.recipe.validationWarnings.join(' ')}</p> : null}
                   {labStatus === 'saved' ? <p className="lab-saved" role="status">Saved to your recipe library.</p> : null}
                   <div className="lab-draft-actions">
-                    <button className="lab-primary" type="button" onClick={() => saveLabRecipe(true)}>Save & cook</button>
-                    <button type="button" onClick={() => saveLabRecipe(false)}>Save to library</button>
+                    <button className="lab-primary" type="button" onClick={() => void saveLabRecipe(true)}>Save & cook</button>
+                    <button type="button" onClick={() => void saveLabRecipe(false)}>Save to library</button>
                     <button type="button" onClick={discardLabDraft}>Discard draft</button>
                   </div>
                 </>
@@ -1608,7 +1778,7 @@ function App() {
           <p className="description">{workingRecipe.description}</p>
         </div>
         <div className="recipe-facts" aria-label="Recipe facts">
-          <div><span>Time</span><strong>{workingRecipe.minutes} min</strong></div>
+          <div><span>Total time</span><strong>{formatRecipeTime(workingRecipe.minutes)}</strong></div>
           <div><span>Calories</span><strong>{Math.round(workingRecipe.calories * scale)}</strong></div>
           <div><span>Protein</span><strong>{Math.round(workingRecipe.protein * scale)}g</strong></div>
         </div>
@@ -1619,9 +1789,9 @@ function App() {
           <div className="card-heading">
             <div><p className="eyebrow">Prep</p><h2>Ingredients</h2></div>
             <div className="serving-control" aria-label="Serving count">
-              <button type="button" onClick={() => setServings(Math.max(1, servings - 1))} aria-label="Decrease servings">−</button>
+              <button type="button" onClick={() => applyServingScale(servings - 1)} aria-label="Decrease servings">−</button>
               <span><strong>{servings}</strong> servings</span>
-              <button type="button" onClick={() => setServings(Math.min(8, servings + 1))} aria-label="Increase servings">+</button>
+              <button type="button" onClick={() => applyServingScale(servings + 1)} aria-label="Increase servings">+</button>
             </div>
           </div>
           <ul className="ingredient-list" key={`${workingRecipe.id}-${step}`} ref={ingredientListRef}>
@@ -1629,8 +1799,11 @@ function App() {
               <li key={item.name} className={`${checked.has(index) ? 'checked' : ''} ${relevant ? 'relevant' : ''}`} style={{ animationDelay: `${Math.min(position, 8) * 24}ms` }}>
                 <button type="button" className="check" onClick={() => toggleIngredient(index)} aria-label={`Mark ${item.name} ${checked.has(index) ? 'unused' : 'ready'}`}>{checked.has(index) ? '✓' : ''}</button>
                 <button type="button" className="ingredient-copy" onClick={() => toggleIngredient(index)}>
-                  <strong>{formatAmount(item.amount)} {item.unit}</strong>
-                  <span className="ingredient-name">{item.name}{item.note ? <small>, {item.note}</small> : null}{relevant ? <em>Now</em> : null}</span>
+                  <strong>{formatIngredientQuantity(item)}</strong>
+                  <span className="ingredient-name">
+                    <span>{item.name}{relevant ? <em>Now</em> : null}</span>
+                    {formatIngredientNote(item.note) ? <small>{formatIngredientNote(item.note)}</small> : null}
+                  </span>
                 </button>
               </li>
             ))}
@@ -1665,7 +1838,7 @@ function App() {
             {voiceMessages.length > 1 || pendingEdit ? <button type="button" onClick={() => setVoiceThreadOpen(true)}>Open conversation</button> : null}
           </div>
           <div className="conversation-log" aria-live="polite">
-            <div className={`voice-message ${currentVoiceMessage?.role ?? 'assistant'}`} aria-label={currentVoiceMessage?.role === 'user' ? 'You said' : 'Orka response'}>
+            <div className={`voice-message ${currentVoiceMessage?.role ?? 'assistant'}`} aria-label={currentVoiceMessage?.role === 'user' ? 'You said' : 'Hub response'}>
               <p>{currentVoiceMessage?.role === 'user' ? `“${currentVoiceMessage.text}”` : currentVoiceMessage?.text ?? READY_VOICE_MESSAGE}</p>
             </div>
           </div>
@@ -1679,7 +1852,7 @@ function App() {
           <section className="voice-thread" role="dialog" aria-modal="true" aria-labelledby="voice-thread-title" onClick={(event) => event.stopPropagation()}>
             <header>
               <div>
-                <p className="eyebrow">Orka conversation</p>
+                <p className="eyebrow">Hub conversation</p>
                 <h2 id="voice-thread-title">Work through it together</h2>
               </div>
               <button type="button" onClick={() => setVoiceThreadOpen(false)} aria-label="Close conversation">×</button>
@@ -1687,7 +1860,7 @@ function App() {
             <div className="voice-thread-messages" ref={conversationRef} aria-live="polite">
               {voiceMessages.map((message) => (
                 <article className={`voice-thread-message ${message.role}`} key={message.id}>
-                  <span>{message.role === 'user' ? 'You' : 'Orka'}</span>
+                  <span>{message.role === 'user' ? 'You' : 'Hub'}</span>
                   <p>{message.text}</p>
                 </article>
               ))}

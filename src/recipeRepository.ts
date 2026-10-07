@@ -1,4 +1,6 @@
-import type { Recipe } from './App'
+import type { Recipe } from './recipe/recipeTypes'
+import { normalizeRecipe } from './recipe/normalize/normalizeRecipe'
+export { sheetsRecipeRepository, type RecipeRepository } from './recipe/storage/sheetsRecipeRepository'
 
 export type RecipeDraft = {
   id: string
@@ -8,7 +10,7 @@ export type RecipeDraft = {
   updatedAt: string
 }
 
-export interface RecipeRepository {
+export interface LocalRecipeLabRepository {
   loadDraft(): RecipeDraft | null
   saveDraft(draft: RecipeDraft): void
   discardDraft(): void
@@ -28,14 +30,15 @@ const read = <T,>(key: string, fallback: T): T => {
   }
 }
 
-export const localRecipeRepository: RecipeRepository = {
+export const localRecipeRepository: LocalRecipeLabRepository = {
   loadDraft: () => read<RecipeDraft | null>(DRAFT_KEY, null),
   saveDraft: (draft) => localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)),
   discardDraft: () => localStorage.removeItem(DRAFT_KEY),
-  loadSavedRecipes: () => read<Recipe[]>(RECIPES_KEY, []),
+  loadSavedRecipes: () => read<Recipe[]>(RECIPES_KEY, []).map(normalizeRecipe),
   saveRecipe: (recipe) => {
     const current = read<Recipe[]>(RECIPES_KEY, [])
-    const next = [...current.filter((item) => item.id !== recipe.id), recipe]
+    const normalized = normalizeRecipe(recipe)
+    const next = [...current.filter((item) => item.id !== normalized.id), normalized]
     localStorage.setItem(RECIPES_KEY, JSON.stringify(next))
     return next
   },

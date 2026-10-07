@@ -1,0 +1,268 @@
+/* Shared smart-display panels. Weather visuals are replaceable, with a protected text layer. */
+.app-shell[data-view='home'] .hub-home { width: min(1700px,100%); padding-top: 24px; }
+.app-shell[data-view='home'] .hub-layout { max-height: none; }
+.hub-left-stack { grid-template-rows: minmax(max-content,1.65fr) minmax(260px,1fr); }
+.app-shell .display-panel { --display-text: #f6f8fa; --display-muted: #c2cbd0; --display-accent: color-mix(in srgb,var(--teal) 65%,white); color: var(--display-text); background: var(--graphite); border: 1px solid color-mix(in srgb,var(--teal) 25%,var(--graphite)); border-radius: 22px; box-shadow: 0 6px 18px #0000000c; }
+.app-shell .display-panel .eyebrow { color: var(--display-muted); font-size: 14px; line-height: 1.3; letter-spacing: .12em; }
+.app-shell .weather-card { container-type: inline-size; display: flex; flex-direction: column; justify-content: space-between; gap: 22px; padding: 28px; overflow: visible; background-image: none; }
+.app-shell .weather-card.has-image { --weather-overlay: linear-gradient(180deg,rgba(17,26,32,.58),rgba(17,26,32,.9)); }
+.weather-hero { display: flex; flex-direction: column; gap: 12px; }
+.app-shell .weather-heading { align-items: center; gap: 20px; }
+.app-shell .weather-heading .eyebrow { margin-bottom: 6px; font-size: 17px; }
+.app-shell .weather-condition { color: var(--display-text); font-size: clamp(27px,2.3vw,38px); line-height: 1.15; }
+.app-shell .weather-glyph { width: 90px; height: 90px; border-radius: 0; color: #f9dba1; background: transparent; }
+.app-shell .weather-glyph svg { width: 84px; height: 84px; stroke-width: 1.5; }
+.app-shell .weather-primary { align-items: center; gap: 30px; }
+.app-shell .weather-primary > strong { font-size: clamp(96px,8vw,144px); font-weight: 650; line-height: .9; }
+.app-shell .weather-primary > span { flex-direction: column; align-items: start; gap: 6px; padding: 0; color: var(--display-text); font-size: 27px; }
+.app-shell .weather-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; }
+.app-shell .weather-metric { gap: 5px; padding: 14px; border: 1px solid #ffffff10; border-radius: 13px; background: #00000020; }
+.app-shell .weather-metric > span { display: flex; align-items: center; gap: 7px; color: var(--display-muted); font-size: 12px; letter-spacing: .055em; }
+.weather-metric-label i { font-size: 18px; font-style: normal; line-height: 1; }
+.app-shell .weather-metric > strong { color: var(--display-text); font-size: clamp(26px,2.4vw,38px); font-weight: 750; line-height: 1.1; letter-spacing: -.03em; overflow: visible; white-space: normal; }
+.app-shell .weather-metric > small { color: var(--display-muted); font-size: 17px; line-height: 1.2; white-space: normal; }
+.app-shell .weather-metric.is-positive > strong, .app-shell .weather-metric.is-positive > small { color: #b5dfc2; }
+.app-shell .weather-metric.is-caution > strong, .app-shell .weather-metric.is-caution > small { color: #f7d691; }
+.app-shell .weather-metric.is-warning > strong, .app-shell .weather-metric.is-warning > small { color: #ffb69b; }
+.app-shell .weather-metric.is-water > strong { color: #b3def0; }
+@container (min-width: 820px) { .app-shell .weather-metrics { grid-template-columns: repeat(6,minmax(0,1fr)); } }
+@container (max-width: 390px) { .app-shell .weather-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+.app-shell .calendar-card.display-panel { padding: 28px; gap: 20px; }
+.app-shell .calendar-heading { gap: 12px; }
+.app-shell .calendar-heading h2 { color: var(--display-text); font-size: clamp(32px,2.8vw,48px); line-height: 1.05; }
+.app-shell .calendar-source { color: var(--display-muted); border: 1px solid #ffffff18; background: #ffffff08; font-size: 11px; padding: 8px 10px; }
+.app-shell .calendar-content { margin-top: 0; min-height: 0; }
+.calendar-agenda { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; gap: 16px; }
+.next-meeting { display: grid; grid-template-columns: 1fr; gap: 15px; flex: 0 0 auto; padding: 22px; border: 1px solid #ffffff22; border-left: 4px solid var(--display-accent); border-radius: 15px; background: #ffffff0a; }
+.meeting-countdown .eyebrow { margin: 0 0 6px; }
+.meeting-countdown > strong { display: block; color: #fff; font-size: clamp(36px,3.3vw,56px); line-height: 1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+.meeting-time { margin: 0 0 7px; color: var(--display-muted); font-size: 18px; font-weight: 650; }
+.next-meeting h3 { margin: 0 0 9px; font-size: clamp(25px,2.2vw,34px); line-height: 1.12; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.agenda-source { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--display-muted); font-size: 16px; line-height: 1.3; }
+.agenda-source i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--display-accent); }
+.meeting-join { justify-self: start; padding: 11px 22px; border-radius: 10px; background: #ecf3f6; color: #14232a; font-weight: 800; text-decoration: none; }
+.meeting-join:focus-visible { outline: 3px solid var(--display-accent); outline-offset: 4px; }
+.next-meeting.is-urgent { border-left-color: #f7d691; background: #f7d69112; }
+.next-meeting.is-active { border-left-color: #b5dfc2; }
+.no-more-meetings { padding: 16px 18px; border: 1px solid #ffffff12; border-radius: 12px; color: var(--display-muted); font-size: 15px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; background: #ffffff06; }
+.calendar-agenda .agenda-label { flex: 0 0 auto; margin: 2px 0 -4px; }
+.app-shell .calendar-events { display: flex; flex-direction: column; gap: 10px; }
+.app-shell .calendar-events li { flex: 0 0 auto; grid-template-columns: 98px minmax(0,1fr); gap: 14px; min-height: 90px; padding: 16px; border: 1px solid #ffffff10; border-radius: 13px; background: #00000018; }
+.app-shell .calendar-events time { color: var(--display-text); font-size: 19px; line-height: 1.25; }
+.app-shell .calendar-events strong { color: var(--display-text); font-size: clamp(23px,1.9vw,30px); font-weight: 700; line-height: 1.17; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.app-shell .calendar-events small { color: var(--display-muted); font-size: 15px; white-space: normal; overflow: visible; }
+.event-badge { align-self: start; padding: 4px 7px; border-radius: 5px; color: #d7e1e7; background: #ffffff12; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .05em; }
+.event-badge.is-cancelled { color: #ffc0c6; background: #b7465825; }
+.event-badge.is-reminder { color: #f7d691; background: #bb8d2b25; }
+.app-shell .calendar-events .is-cancelled strong, .app-shell .calendar-events .is-declined strong { color: #c2cbd0; }
+.app-shell .calendar-events .is-next { border-left: 3px solid var(--display-accent); background: #ffffff0b; }
+.display-panel .calendar-state p, .display-panel .calendar-refresh-warning { color: var(--display-muted); }
+.display-panel .calendar-skeleton i { background: #ffffff12; }
+@media (min-width:1121px) and (max-height:850px) {
+  .app-shell[data-view='home'] { height: auto; min-height: 100dvh; overflow: visible; }
+  .app-shell[data-view='home'] .hub-layout { min-height: 660px; }
+}
+@media (max-width:1120px) {
+  .hub-left-stack { grid-template-rows: auto auto; }
+  .app-shell .weather-card { min-height: 480px; }
+  .app-shell .calendar-card.display-panel { min-height: 600px; max-height: none; }
+  .calendar-agenda { min-height: 0; }
+  .app-shell .calendar-events { overflow: visible; }
+}
+@media (max-width:700px) {
+  .app-shell .weather-card, .app-shell .calendar-card.display-panel { padding: 22px; border-radius: 19px; }
+  .app-shell .weather-card { min-height: 510px; gap: 22px; }
+  .app-shell .weather-primary > strong { font-size: 100px; }
+  .app-shell .weather-primary > span { font-size: 23px; }
+  .app-shell .weather-glyph { width: 70px; height: 70px; }
+  .app-shell .weather-glyph svg { width: 64px; height: 64px; }
+  .app-shell .weather-metric { padding: 12px; }
+  .app-shell .weather-metric > strong { font-size: 28px; }
+  .app-shell .weather-metric > span { font-size: 11px; }
+  .app-shell .calendar-heading { flex-wrap: wrap; }
+  .app-shell .calendar-heading h2 { font-size: 34px; }
+  .app-shell .calendar-events li { grid-template-columns: 1fr; gap: 10px; }
+  .app-shell .calendar-events time { font-size: 18px; }
+  .next-meeting { padding: 18px; }
+  .meeting-countdown > strong { font-size: 40px; }
+}
+.weather-attribution { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--display-muted); font-size: 11px; line-height: 1.3; }
+.weather-attribution a { color: var(--display-muted); text-underline-offset: 3px; }
+.weather-loading > strong { font-size: 32px; }
+.weather-loading button { align-self: start; min-height: 44px; padding: 10px 18px; border: 1px solid #ffffff30; border-radius: 9px; color: #fff; background: #ffffff14; }
+@media (min-width:1121px) and (max-height:980px) {
+  .hub-left-stack { grid-template-rows: minmax(max-content,1.65fr) minmax(260px,1fr); }
+  .app-shell .weather-card { padding: 22px; gap: 16px; }
+  .app-shell .weather-primary > strong { font-size: 100px; }
+  .app-shell .weather-metric { padding: 10px 12px; }
+  .app-shell .weather-metric > strong { font-size: 30px; }
+  .app-shell .weather-metric > small { font-size: 16px; }
+}
+
+/* Keep weather content in its natural height; the agenda owns internal scrolling. */
+.app-shell .weather-card > * { flex-shrink: 0; }
+.app-shell .hub-card.cooking-app { border: 1px solid color-mix(in srgb,var(--teal) 25%,var(--graphite)); }
+.app-shell .calendar-card .eyebrow { font-size: 18px; }
+.app-shell .calendar-source { font-size: 16px; }
+.meeting-time { font-size: 25px; }
+.next-meeting h3 { font-size: clamp(32px,2.7vw,42px); }
+.agenda-source { font-size: 22px; }
+.meeting-join { font-size: 23px; }
+.no-more-meetings { font-size: 21px; }
+.app-shell .calendar-events li { grid-template-columns: 120px minmax(0,1fr); gap: 16px; padding: 20px; }
+.app-shell .calendar-events time { font-size: 25px; }
+.app-shell .calendar-events strong { font-size: clamp(30px,2.5vw,38px); line-height: 1.2; }
+.app-shell .calendar-events small { font-size: 21px; }
+.event-badge { font-size: 16px; padding: 5px 9px; }
+.app-shell .calendar-state p, .app-shell .calendar-refresh-warning { font-size: 22px; }
+@media (max-width:700px) {
+  .app-shell .calendar-card .eyebrow { font-size: 14px; }
+  .app-shell .calendar-source, .event-badge { font-size: 13px; }
+  .meeting-time, .agenda-source, .app-shell .calendar-events small { font-size: 17px; }
+  .no-more-meetings { font-size: 16px; }
+  .next-meeting h3 { font-size: 26px; }
+  .app-shell .calendar-events li { grid-template-columns: 1fr; padding: 16px; }
+  .app-shell .calendar-events time { font-size: 20px; }
+  .app-shell .calendar-events strong { font-size: 25px; }
+}
+/* Reserve more horizontal space for the across-room agenda. */
+@media (min-width:1121px) {
+  .app-shell[data-view='home'] .hub-layout { grid-template-columns: minmax(0,2fr) minmax(0,3fr); }
+  .app-shell .weather-card { padding: 22px; }
+  .app-shell .weather-metrics { gap: 8px; }
+  .app-shell .weather-metric { padding: 10px; }
+  .app-shell .weather-primary { gap: 22px; }
+  .hub-left-stack .hub-card { padding: 28px; }
+  .hub-left-stack .hub-card-copy strong { font-size: clamp(32px,2.8vw,44px); }
+  .app-shell .calendar-events strong { font-size: clamp(34px,2.8vw,44px); }
+  .app-shell .calendar-events time { font-size: 28px; }
+  .app-shell .calendar-events li { grid-template-columns: 132px minmax(0,1fr); }
+  .next-meeting h3 { font-size: clamp(36px,3vw,46px); }
+}
+
+/* Compact agenda rhythm makes room for display-sized type. */
+.app-shell .calendar-card.display-panel { padding: 24px; gap: 14px; }
+.app-shell .calendar-heading h2 { font-size: clamp(48px,3.8vw,56px); line-height: 1.06; }
+.app-shell .calendar-heading .eyebrow { margin-bottom: 5px; }
+.calendar-agenda { gap: 12px; }
+.no-more-meetings { display: flex; align-items: center; gap: 12px; padding: 10px 14px; font-size: clamp(18px,1.6vw,22px); }
+.agenda-icon { width: 22px; height: 22px; flex: 0 0 auto; }
+.calendar-agenda .agenda-label { display: flex; align-items: center; gap: 14px; margin: 0; }
+.calendar-agenda .agenda-label::after { content: ''; height: 1px; flex: 1; background: #ffffff18; }
+.app-shell .calendar-events { gap: 8px; }
+.app-shell .calendar-events li { grid-template-columns: 118px minmax(0,1fr); min-height: 0; gap: 18px; padding: 14px 16px; }
+.app-shell .calendar-events time { display: flex; flex-direction: column; align-self: stretch; gap: 2px; padding: 2px 14px 0 0; border-right: 1px solid #ffffff18; font-size: clamp(34px,3vw,42px); line-height: 1.08; }
+.agenda-period { font-size: .65em; letter-spacing: .04em; }
+.agenda-event-detail { display: flex; flex-direction: column; min-width: 0; gap: 6px; }
+.app-shell .calendar-events strong { font-size: clamp(30px,2.6vw,36px); line-height: 1.13; }
+.app-shell .calendar-events small, .agenda-source { font-size: clamp(20px,1.7vw,24px); line-height: 1.2; }
+.event-badge { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; font-size: clamp(18px,1.6vw,22px); padding: 4px 8px; line-height: 1.1; }
+.event-badge .agenda-icon { width: 19px; height: 19px; }
+.next-meeting { padding: 16px 18px; gap: 10px; }
+.meeting-time { margin-bottom: 5px; }
+.next-meeting h3 { margin-bottom: 6px; }
+@media (max-width:700px) {
+  .app-shell .calendar-card.display-panel { padding: 20px; }
+  .app-shell .calendar-heading h2 { font-size: 34px; }
+  .app-shell .calendar-events li { grid-template-columns: 76px minmax(0,1fr); padding: 12px; gap: 12px; }
+  .app-shell .calendar-events time { font-size: 25px; padding-right: 10px; }
+  .app-shell .calendar-events strong { font-size: 24px; }
+  .app-shell .calendar-events small, .agenda-source { font-size: 16px; }
+  .event-badge { font-size: 13px; }
+  .no-more-meetings { font-size: 15px; }
+}
+
+/* Larger smart-display agenda; rows grow naturally instead of compressing text. */
+@media (min-width:701px) {
+  .app-shell .calendar-heading h2 { font-size: clamp(54px,4.4vw,64px); line-height: 1.08; }
+  .app-shell .calendar-card .eyebrow { font-size: 22px; }
+  .app-shell .calendar-source { font-size: 19px; }
+  .calendar-agenda { gap: 16px; }
+  .app-shell .calendar-events { gap: 12px; }
+  .app-shell .calendar-events li { grid-template-columns: 136px minmax(0,1fr); padding: 18px; gap: 20px; }
+  .app-shell .calendar-events time { font-size: clamp(42px,3.6vw,50px); line-height: 1.12; }
+  .agenda-event-detail { gap: 9px; }
+  .app-shell .calendar-events strong { font-size: clamp(36px,3.1vw,44px); line-height: 1.16; }
+  .app-shell .calendar-events small, .agenda-source { font-size: clamp(24px,2vw,28px); line-height: 1.3; }
+  .event-badge { font-size: clamp(21px,1.8vw,25px); padding: 5px 9px; }
+  .no-more-meetings { font-size: 24px; padding: 12px 16px; }
+  .meeting-countdown > strong { font-size: clamp(48px,4.5vw,66px); }
+  .meeting-time { font-size: 30px; }
+  .next-meeting h3 { font-size: clamp(40px,3.4vw,48px); line-height: 1.16; }
+  .meeting-join { font-size: 27px; }
+  .app-shell .calendar-state p, .app-shell .calendar-refresh-warning { font-size: 26px; }
+}
+@media (min-width:701px) {
+  .app-shell .calendar-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px 16px; }
+  .calendar-heading > div { display: contents; }
+  .app-shell .calendar-heading .eyebrow { grid-column: 1; grid-row: 1; margin: 0; }
+  .app-shell .calendar-heading .calendar-source { grid-column: 2; grid-row: 1; }
+  .app-shell .calendar-heading h2 { grid-column: 1 / -1; grid-row: 2; margin: 0; }
+}
+
+.app-shell[data-view='home'] .hub-home { padding: 18px 0 8px; }
+.app-shell[data-view='home'] .topbar-actions .ghost-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 15px; border: 1px solid var(--line); border-radius: 12px; color: inherit; background: color-mix(in srgb,var(--panel-muted) 68%,transparent); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.topbar-actions svg { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.app-shell[data-view='home'] .topbar-actions .ghost-button:hover { background: var(--panel-muted); border-color: var(--teal); }
+.app-shell[data-view='home'] .topbar-actions .ghost-button:active { background: color-mix(in srgb,var(--teal) 18%,var(--panel-muted)); }
+.app-shell[data-view='home'] .topbar-actions .ghost-button:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+@media (min-width:1121px) {
+  .app-shell[data-view='home'] .hub-layout { grid-template-columns: minmax(0,7fr) minmax(0,13fr); }
+  .app-shell .weather-card { padding: 18px; }
+  .app-shell .weather-metrics { gap: 7px; }
+  .app-shell .weather-metric { padding: 10px 8px; }
+  .hub-left-stack .hub-card { padding: 24px; }
+  .app-shell .calendar-events strong { font-size: clamp(38px,3.25vw,46px); }
+  .app-shell .calendar-events time { font-size: clamp(44px,3.7vw,52px); }
+  .app-shell .calendar-events li { grid-template-columns: 140px minmax(0,1fr); }
+}
+@media (max-width:700px) {
+  .app-shell[data-view='home'] .topbar { padding-right: 0; }
+  .app-shell[data-view='home'] .topbar-actions:not(:empty) { position: static; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); grid-auto-flow: row; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+  .app-shell[data-view='home'] .topbar-actions .ghost-button { flex-direction: column; gap: 3px; height: 52px; padding: 5px 3px; font-size: 11px; }
+  .app-shell[data-view='home'] .hub-home { padding-bottom: 8px; }
+}
+
+.app-shell .calendar-events .is-cancelled strong { text-decoration-line: line-through; text-decoration-thickness: .06em; text-decoration-color: currentColor; }
+
+/* Distant meetings use a shallow status strip; proximity earns countdown emphasis. */
+.app-shell .next-meeting.meeting-strip { padding: 12px 16px; gap: 8px; }
+.meeting-strip-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 18px; }
+.meeting-strip-heading .eyebrow { margin: 0; }
+.meeting-strip-heading > span, .meeting-strip-heading > strong { font-size: clamp(20px,1.6vw,24px); line-height: 1.2; }
+.meeting-strip-heading > strong { margin-left: auto; color: var(--display-accent); white-space: nowrap; }
+.meeting-strip-title { display: flex; align-items: baseline; gap: 16px; min-width: 0; }
+.app-shell .meeting-strip-title h3 { flex: 1; margin: 0; font-size: clamp(30px,2.6vw,38px); line-height: 1.15; }
+.meeting-strip-title > span { flex-shrink: 0; font-size: 22px; color: var(--display-muted); }
+.meeting-strip:not(.is-compact) { grid-template-columns: auto minmax(0,1fr) auto; align-items: center; column-gap: 20px; }
+.app-shell .meeting-strip .meeting-time { margin: 6px 0 0; font-size: 24px; }
+.app-shell .meeting-strip .next-meeting-detail h3 { margin: 0; font-size: clamp(30px,2.6vw,38px); }
+.app-shell .meeting-strip .meeting-countdown > strong { font-size: clamp(40px,3.5vw,52px); }
+@media (max-width:700px) {
+  .meeting-strip-heading { gap: 6px 12px; }
+  .meeting-strip-heading > span, .meeting-strip-heading > strong { font-size: 16px; }
+  .app-shell .meeting-strip-title h3, .app-shell .meeting-strip .next-meeting-detail h3 { font-size: 24px; }
+  .meeting-strip-title > span { font-size: 16px; }
+  .meeting-strip:not(.is-compact) { grid-template-columns: 1fr; gap: 12px; }
+  .app-shell .meeting-strip .meeting-time { font-size: 18px; }
+}
+
+.app-shell .meeting-strip.is-compact { grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 10px 20px; }
+.meeting-strip-summary { min-width: 0; display: grid; gap: 7px; }
+.meeting-strip-relative { justify-self: center; color: var(--display-accent); font-size: clamp(36px,3.3vw,56px); line-height: 1; letter-spacing: -.04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.meeting-strip-duration { align-self: end; padding-bottom: 3px; color: var(--display-muted); font-size: 18px; white-space: nowrap; }
+@media (max-width:1500px) and (min-width:701px) {
+  .app-shell .meeting-strip.is-compact { grid-template-columns: minmax(0,1fr) auto; gap: 8px 16px; }
+  .meeting-strip-duration { grid-column: 2; justify-self: center; }
+  .meeting-strip-summary { grid-row: 1 / 3; }
+}
+@media (max-width:700px) {
+  .app-shell .meeting-strip.is-compact { grid-template-columns: minmax(0,1fr) auto; gap: 10px; }
+  .meeting-strip-summary { grid-column: 1 / -1; }
+  .meeting-strip-relative { justify-self: start; font-size: 34px; }
+  .meeting-strip-duration { justify-self: end; font-size: 16px; }
+}
+
+.app-shell .meeting-strip.is-compact { grid-template-columns: minmax(0,1fr) auto; }
+.meeting-strip-summary { grid-row: auto; }
+@media (max-width:700px) { .meeting-strip-relative { grid-column: 1 / -1; } }

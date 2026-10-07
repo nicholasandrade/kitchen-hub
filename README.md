@@ -13,8 +13,8 @@ After installation:
 1. Launch **Kitchen Hub**.
 2. Allow microphone access in Edge once.
 3. Open **Settings → Connections** and enter an OpenAI API key.
-4. Select **Sign in with Google** if you want today’s schedule and prep reminders on Home.
-5. Say “Kitchen Hub,” followed by a command.
+4. Select **Sign in with Google** to connect Calendar and the **Hub Recipes** spreadsheet.
+5. Say “Hub,” followed by a command.
 
 The API key, logs, wake phrase, and dedicated Edge profile are stored under `%LOCALAPPDATA%\KitchenHub\data`. Upgrades preserve this directory. See [SURFACE_SETUP.md](./SURFACE_SETUP.md) for the complete tablet checklist.
 
@@ -53,20 +53,20 @@ This HTTP preview is intended for visual iteration. Browsers generally require H
 
 The app creates or updates `.env` only when an API key or wake phrase is saved in Settings. This file is ignored by Git. Never place the API key in a `VITE_*` variable.
 
-## Google Calendar
+## Google services and Hub Recipes
 
-Kitchen Hub reads the primary Google Calendar and keeps the refresh token on the local device. Calendar access uses the read-only scope; Kitchen Hub cannot create, edit, or delete events. Installed users only select **Sign in with Google** and approve access once.
+Kitchen Hub reads the primary Google Calendar and uses the existing **Hub Recipes** Google Sheet as its external recipe store. One shared OAuth session covers both services. Calendar remains read-only; recipe sync uses Google Sheets read/write access and Drive metadata access only to locate the spreadsheet by its exact name when `GOOGLE_RECIPES_SPREADSHEET_ID` is not configured. The refresh token stays on the local device.
 
 The project owner performs this developer setup once for every KitchenHub installation:
 
 1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
-2. Enable the **Google Calendar API**.
+2. Enable the **Google Calendar API**, **Google Sheets API**, and **Google Drive API**.
 3. Configure the Google Auth consent screen. For a personal Google account, use an External audience and add your account as a test user while the app remains in testing.
 4. Create an OAuth client with application type **Desktop app**.
 5. Download the Desktop client credentials. Set the repository Actions variable `GOOGLE_CLIENT_ID` and Actions secret `GOOGLE_CLIENT_SECRET` to those values. Local developers can instead set both values in their ignored `.env` file.
 6. Build the installer. The build embeds the Desktop OAuth credentials in `app-config.json`.
 
-The app uses Authorization Code with PKCE and the desktop loopback return address `http://127.0.0.1:8787`. Google requires the client secret issued with this Desktop credential during token exchange; as with all installed applications, that value cannot be treated as confidential. Calendar tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades.
+The app uses Authorization Code with PKCE and the desktop loopback return address `http://127.0.0.1:8787`. Google requires the client secret issued with this Desktop credential during token exchange; as with all installed applications, that value cannot be treated as confidential. Google tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades. Existing Calendar-only installations must use **Settings → Connections → Reconnect Google** once to grant the additional Sheets scopes.
 
 ## Build the Windows installer
 
@@ -91,5 +91,10 @@ Tagged GitHub builds are automated. Push a version tag such as `v0.1.0`; the wor
 - `DELETE /api/calendar/connection` — remove the locally stored calendar token
 - `POST /api/voice/transcribe` — transcribe a command recording
 - `POST /api/voice/command` — return one schema-constrained application command
+- `POST /api/recipes/generate` — create a schema-constrained Recipe Lab draft
+- `GET /api/recipes` — load normalized recipes from Hub Recipes
+- `GET /api/recipes/search?q=…` — search normalized recipes
+- `POST /api/recipes` — save a normalized recipe to Hub Recipes
+- `PUT /api/recipes/:id` — update a normalized recipe in Hub Recipes
 - `GET /api/wake/events` — stream wake events to the browser
 - `POST /api/wake` — receive a detected wake event from the local listener

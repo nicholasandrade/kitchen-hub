@@ -42,7 +42,7 @@ button { font: inherit; }
 .hub-intro > p:last-child { max-width: 720px; margin: 18px 0 0; color: var(--steel); font-size: clamp(18px,1.7vw,24px); line-height: 1.45; }
 .hub-layout { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: minmax(0,1fr); align-items: stretch; gap: clamp(14px,1.7vw,26px); }
 .app-shell[data-view='home'] .hub-layout { flex: 1; min-height: 0; max-height: 840px; }
-.hub-left-stack { display: grid; min-width: 0; min-height: 0; grid-template-rows: minmax(0,2fr) minmax(0,3fr); gap: clamp(14px,1.7vw,26px); }
+.hub-left-stack { display: grid; min-width: 0; min-height: 0; grid-template-rows: minmax(0,2.25fr) minmax(0,2.75fr); gap: clamp(14px,1.7vw,26px); }
 .hub-card { position: relative; display: flex; min-height: clamp(390px,47vh,520px); flex-direction: column; align-items: flex-start; overflow: hidden; padding: clamp(32px,4vw,54px); border: 0; border-radius: 22px; color: #f7fbfa; background: var(--graphite); box-shadow: 0 20px 48px rgba(30,38,40,.13); text-align: left; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
 .app-shell[data-view='home'] .hub-card { min-height: 0; }
 .hub-card::after { position: absolute; right: -12%; bottom: -42%; width: 62%; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--teal) 15%, transparent); content: ''; }
@@ -58,26 +58,26 @@ button { font: inherit; }
 .hub-left-stack .hub-card-copy { gap: 8px; }
 .hub-left-stack .hub-card-copy strong { font-size: clamp(32px,3.2vw,50px); }
 .hub-left-stack .hub-card-copy small { font-size: 14px; }
-.weather-card { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto auto auto auto; align-content: center; gap: clamp(8px,.9dvh,10px); overflow: hidden; padding: clamp(20px,2.2vw,32px); border-radius: 22px; color: inherit; background: color-mix(in srgb,var(--panel) 93%,transparent); box-shadow: 0 20px 48px rgba(30,38,40,.09); }
+.weather-card { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto auto auto auto; align-content: center; gap: clamp(10px,1.2dvh,14px); overflow: hidden; padding: clamp(24px,2.5vw,36px); border-radius: 22px; color: inherit; background: color-mix(in srgb,var(--panel) 93%,transparent); box-shadow: 0 20px 48px rgba(30,38,40,.09); }
 .weather-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .weather-heading .eyebrow { margin-bottom: 4px; font-size: 12px; }
-.weather-condition { color: var(--steel); font-size: 16px; font-weight: 560; }
+.weather-condition { color: var(--steel); font-size: 18px; font-weight: 600; }
 .weather-glyph { display: grid; flex: 0 0 auto; place-items: center; width: 48px; height: 48px; border-radius: 14px; color: var(--teal-dark); background: var(--panel-muted); }
 .weather-glyph svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 2; }
 .weather-primary { display: flex; align-items: flex-end; gap: clamp(22px,3vw,42px); }
 .weather-primary > strong { font-size: clamp(56px,4.2vw,64px); font-weight: 620; line-height: .82; letter-spacing: -.07em; font-variant-numeric: tabular-nums; }
-.weather-primary > span { display: flex; align-items: center; gap: 8px; padding-bottom: 5px; color: var(--steel); font-size: 16px; font-variant-numeric: tabular-nums; }
+.weather-primary > span { display: flex; align-items: center; gap: 8px; padding-bottom: 5px; color: var(--steel); font-size: 18px; font-variant-numeric: tabular-nums; }
 .weather-primary b { font-weight: 750; }
 .weather-primary i { color: var(--teal); font-style: normal; }
 .weather-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-top: 4px; }
 .weather-metric { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 2px; }
-.weather-metric > span { color: var(--steel); font-size: 12px; font-weight: 820; letter-spacing: .11em; text-transform: uppercase; }
-.weather-metric > strong { overflow: hidden; max-width: 100%; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
-.weather-metric > small { overflow: hidden; max-width: 100%; color: var(--steel); font-size: 13px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.weather-metric > span { color: var(--steel); font-size: 13px; font-weight: 820; letter-spacing: .11em; text-transform: uppercase; }
+.weather-metric > strong { overflow: hidden; max-width: 100%; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+.weather-metric > small { overflow: hidden; max-width: 100%; color: var(--steel); font-size: 14px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
 .weather-metric.is-positive > strong, .weather-metric.is-positive > small { color: var(--teal-dark); }
 .weather-metric.is-caution > strong, .weather-metric.is-caution > small { color: #a66f19; }
 .weather-metric.is-warning > strong, .weather-metric.is-warning > small { color: #b65443; }
-.weather-footer { margin: 0; color: var(--steel); font-size: 14px; font-weight: 560; }
+.weather-footer { margin: 0; color: var(--steel); font-size: 16px; font-weight: 600; }
 .weather-footer span { margin: 0 6px; color: var(--teal); }
 .calendar-card { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: clamp(26px,3vw,42px); border-radius: 22px; background: color-mix(in srgb,var(--panel) 93%,transparent); box-shadow: 0 20px 48px rgba(30,38,40,.09); }
 .calendar-heading { display: flex; align-items: start; justify-content: space-between; gap: 22px; }
@@ -187,12 +187,12 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .ingredient-list::-webkit-scrollbar { width: 7px; }
 .ingredient-list::-webkit-scrollbar-track { background: transparent; }
 .ingredient-list::-webkit-scrollbar-thumb { border-radius: 99px; background: var(--teal); }
-.ingredient-list li { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 14px; min-height: 78px; padding: 7px 10px; border-bottom: 1px solid rgba(88,75,58,.12); animation: ingredient-row-enter .32s cubic-bezier(.2,.72,.25,1) both; }
+.ingredient-list li { display: grid; flex: 0 0 auto; grid-template-columns: 44px minmax(0,1fr); align-items: center; gap: 14px; min-height: 78px; padding: 12px 10px; border-bottom: 1px solid rgba(88,75,58,.12); animation: ingredient-row-enter .32s cubic-bezier(.2,.72,.25,1) both; }
 .check { width: 33px; height: 33px; border: 2px solid #aeb6b7; border-radius: 8px; color: #fff; background: transparent; cursor: pointer; font-size: 19px; font-weight: 800; }
-.ingredient-copy { display: grid; grid-template-columns: 140px 1fr; align-items: baseline; gap: 9px; padding: 12px 0; border: 0; color: inherit; background: transparent; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-align: left; cursor: pointer; }
-.ingredient-copy strong { color: var(--teal-dark); font-size: 23px; font-weight: 800; letter-spacing: -.015em; }
-.ingredient-name { color: #2f302d; font-size: 25px; font-weight: 650; line-height: 1.22; letter-spacing: -.025em; }
-.ingredient-name small { color: #5f5d57; font-size: 20px; font-weight: 520; }
+.ingredient-copy { display: grid; width: 100%; grid-template-columns: minmax(105px,140px) minmax(0,1fr); align-items: center; gap: 12px; padding: 8px 0; border: 0; color: inherit; background: transparent; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-align: left; cursor: pointer; }
+.ingredient-copy strong { align-self: center; color: var(--teal-dark); font-size: 23px; font-weight: 800; line-height: 1.15; letter-spacing: -.015em; }
+.ingredient-name { display: flex; min-width: 0; align-self: stretch; flex-direction: column; justify-content: center; gap: 4px; color: #2f302d; font-size: 25px; font-weight: 650; line-height: 1.16; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.ingredient-name small { display: block; color: #6d6961; font-size: 16px; font-weight: 520; line-height: 1.3; letter-spacing: -.01em; }
 .ingredient-name em { display: inline-block; margin-left: 10px; padding: 3px 7px; border-radius: 6px; color: #f7fbfa; background: var(--teal); font-size: 10px; font-style: normal; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; vertical-align: 3px; }
 .ingredient-list li.relevant { border-color: color-mix(in srgb, var(--teal) 30%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--teal) 11%, transparent); }
 .ingredient-list li.relevant + li:not(.relevant) { margin-top: 10px; border-top: 1px solid rgba(88,75,58,.12); }
@@ -512,15 +512,19 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
   .app-shell[data-view='home'] .hub-home { padding: 22px 0 12px; }
   .hub-layout { gap: 30px; }
   .hub-left-stack { gap: 14px; }
-  .weather-card { min-height: 285px; padding: 22px; border-radius: 19px; }
-  .weather-primary > strong { font-size: 60px; }
-  .weather-heading .eyebrow { font-size: 11px; }
-  .weather-condition { font-size: 14px; }
-  .weather-primary > span { font-size: 14px; }
-  .weather-metric > span { font-size: 10px; }
-  .weather-metric > strong { font-size: 20px; }
-  .weather-metric > small { font-size: 11px; }
-  .weather-footer { font-size: 12px; }
+  .weather-card { min-height: 365px; gap: 14px; padding: 28px 26px; border-radius: 19px; }
+  .weather-primary { gap: 30px; }
+  .weather-primary > strong { font-size: 72px; }
+  .weather-heading .eyebrow { font-size: 12px; }
+  .weather-condition { font-size: 18px; }
+  .weather-glyph { width: 54px; height: 54px; }
+  .weather-primary > span { padding-bottom: 7px; font-size: 17px; }
+  .weather-metrics { gap: 14px; margin-top: 4px; }
+  .weather-metric { gap: 3px; }
+  .weather-metric > span { font-size: 11px; }
+  .weather-metric > strong { font-size: 26px; }
+  .weather-metric > small { font-size: 14px; }
+  .weather-footer { font-size: 15px; }
   .app-shell[data-view='home'] .hub-card, .hub-card { min-height: 250px; padding: 24px; border-radius: 19px; }
   .hub-card-copy { gap: 8px; }
   .hub-card-copy strong { font-size: clamp(31px,9vw,38px); line-height: 1.02; }
@@ -612,3 +616,11 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 @media (max-width: 420px) {
   .weather-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); row-gap: 12px; }
 }
+
+.calendar-selection { margin-top: 20px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.calendar-selection legend { padding: 0 6px; font-weight: 700; }
+.calendar-selection label { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.calendar-selection input { width: 20px; height: 20px; accent-color: var(--teal); }
+.calendar-selection label span { display: flex; flex-direction: column; gap: 3px; }
+.calendar-selection small, .calendar-refresh-warning { color: var(--steel); font-size: 12px; }
+.calendar-events .calendar-event-source { font-size: 12px; color: var(--steel); }

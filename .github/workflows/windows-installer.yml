@@ -75,5 +75,5 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload '${{ github.ref_name }}' $asset --clobber
           } else {
-            gh release create '${{ github.ref_name }}' $asset --generate-notes --title 'Kitchen Hub ${{ steps.version.outputs.value }}'
+            gh release create '${{ github.ref_name }}' $asset --generate-notes --title 'Hub ${{ steps.version.outputs.value }}'
           }

@@ -1,13 +1,15 @@
-# Windows packaging
+# Hub Windows packaging
 
-The Windows package preserves the existing architecture:
+The installer preserves the React/Vite frontend, local Node API, sherpa-onnx wake listener, and Edge runtime. It does not use Electron.
 
-- Vite compiles the React frontend to static files.
-- An official portable Node executable runs `server/index.mjs` and serves the frontend.
-- PyInstaller creates a folder-based `kitchen-wake.exe` distribution containing Python, sherpa-onnx, sentencepiece, NumPy, and their native libraries.
-- The sherpa wake model remains outside the executable for reliable native loading and easier inspection.
-- Inno Setup produces one per-user installer and registers an optional startup shortcut.
-- Edge runs in kiosk mode with a dedicated, preserved profile.
+- Vite produces static frontend files.
+- An official portable Node runtime serves the frontend and API.
+- PyInstaller packages Python, sherpa-onnx, sentencepiece, NumPy, and native dependencies.
+- Wake models remain outside the executable for native loading.
+- Inno Setup installs per-user with optional startup launch.
+- Edge uses a dedicated, preserved kiosk profile.
+
+The product is named **Hub**. Existing `KitchenHub` installer filenames and Windows data paths remain for compatibility.
 
 ## Installed layout
 
@@ -16,7 +18,11 @@ The Windows package preserves the existing architecture:
   app\
     app-config.json
     dist\
-    server\index.mjs
+    server\
+      index.mjs
+      calendars.mjs
+      weather.mjs
+      sheetsRecipes.mjs
     runtime\node.exe
   wake\
     kitchen-wake\kitchen-wake.exe
@@ -26,31 +32,46 @@ The Windows package preserves the existing architecture:
 %LOCALAPPDATA%\KitchenHub\data\
   .env
   google-calendar-token.json
+  calendar-selections.json
   wake\
   logs\
   edge-profile\
 ```
 
-## Local build
+The build stages all production `server/*.mjs` modules and excludes test modules. Mutable user data belongs outside the installed program directory. Cook Mode persistence belongs to the dedicated browser profile.
 
-Requirements are Node/npm, Python 3.11, and Inno Setup 6. Run:
+## Build locally
+
+Requirements: Node/npm, Python 3.11, and Inno Setup 6.
 
 ```powershell
-.\packaging\build-windows.ps1
+npm run build:windows
 ```
 
-Optional parameters are `-AppVersion`, `-NodeVersion`, `-OutputDirectory`, `-GoogleClientId`, and `-GoogleClientSecret`. The build accepts the Google Desktop OAuth credentials from the `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables and embeds them in `app-config.json`. Desktop application credentials cannot be kept confidential, so PKCE remains enabled for each authorization. The default Node version is pinned and its zip is checked against Node’s official `SHASUMS256.txt` before use. Set `INNO_SETUP_COMPILER` if `ISCC.exe` is installed in a nonstandard directory.
+Equivalent direct command: `./packaging/build-windows.ps1`.
 
-The output is `artifacts\KitchenHub-Setup-<version>.exe`. Build intermediates stay under `build\windows`; both paths are ignored by Git.
+Optional parameters: `-AppVersion`, `-NodeVersion`, `-OutputDirectory`, `-GoogleClientId`, and `-GoogleClientSecret`. The Google credentials default to the `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables and are embedded in `app-config.json`. These are Desktop OAuth credentials; PKCE remains enabled and user tokens remain local.
 
-## GitHub release
+The portable Node version is pinned and its archive is verified against the official `SHASUMS256.txt`. Set `INNO_SETUP_COMPILER` for a nonstandard `ISCC.exe` location.
 
-The `Build Windows installer` workflow can run manually and returns the setup executable as an Actions artifact. A pushed `v*` tag also creates a GitHub Release and attaches the versioned installer.
+Output: `artifacts\KitchenHub-Setup-<version>.exe`. Intermediates: `build\windows`. Both are ignored by Git.
 
-Before tagging a release:
+## GitHub builds and releases
 
-1. update the version in `package.json` and `package-lock.json`
-2. run `npm run lint` and `npm run build`
-3. test `packaging\build-windows.ps1`
-4. install the result on a clean Windows user profile
-5. confirm Settings can save the API key, Google Calendar can connect, microphone access persists, the wake phrase works, and a recipe survives restart
+The [Build Windows installer workflow](../.github/workflows/windows-installer.yml) can run manually and upload an Actions artifact. A pushed `v*` tag also publishes the versioned installer to GitHub Releases. Pushing `main` does not automatically publish an installer.
+
+Configure repository Actions variable `GOOGLE_CLIENT_ID` and secret `GOOGLE_CLIENT_SECRET` before building Google-enabled releases.
+
+Before release:
+
+1. Update the version in `package.json` and `package-lock.json`.
+2. Run `npm test`, `npm run lint`, and `npm run build`.
+3. Build the installer on Windows.
+4. Install it in a clean Windows user profile and test on the actual Surface.
+5. Verify API-key setup, microphone permission, automatic listening, custom wake phrase, spoken commands, audio output, and launch after restart.
+6. Verify Google sign-in, selected secondary/read-only calendars, recipe sync, and live weather.
+7. Verify Cook Mode step, servings, checks, and working edits survive refresh/restart; completion clears the active session.
+
+Weather defaults to Los Angeles. Change `WEATHER_CITY`, `WEATHER_LATITUDE`, and `WEATHER_LONGITUDE` in the installed data `.env` and restart the app for another location. Calendar selections persist beside the Google token.
+
+For rapid LAN design and voice testing, use `npm run dev:lan` and the [Surface voice launcher instructions](../README.md#voice-testing-through-lan). This is a development workflow; installed builds use localhost. Passing source tests does not establish that a newly generated installer or Surface microphone flow has been verified.

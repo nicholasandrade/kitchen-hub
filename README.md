@@ -1,26 +1,22 @@
-# Kitchen Hub
+# Hub
 
-Kitchen Hub is a voice-controlled, screen-first kitchen application for a Microsoft Surface Pro. It combines a recipe library, persistent cooking sessions, serving scaling, ingredient readiness, timers, OpenAI speech-to-text and command interpretation, and local sherpa-onnx wake phrase detection.
+Hub is a voice-first kitchen and home display for Microsoft Surface. It combines live Weather, Google Calendar, a recipe library, Recipe Lab, persistent Cook Mode, serving scaling, ingredient check-off, and timers. OpenAI handles speech transcription and structured command interpretation; sherpa-onnx detects the wake phrase locally.
 
-Voice is the primary input. The screen provides the authoritative recipe state and concise responses. Recipe changes, navigation, serving math, and completion remain deterministic application logic.
+The product name is Hub. Existing KitchenHub installer filenames, Windows paths, environment names, and storage keys remain for compatibility.
 
 ## Install on a Surface
 
-Download the latest `KitchenHub-Setup-x.y.z.exe` from the repository’s GitHub Releases page and run it. The installer contains the compiled frontend, Node runtime, packaged wake listener, and wake model. Git, Node, and Python are not required on the Surface.
+Download an available `KitchenHub-Setup-<version>.exe` from [GitHub Releases](https://github.com/nicholasandrade/kitchen-hub/releases). The installer bundles the frontend, portable Node, packaged wake listener, and wake models. Git, Node, and Python are not required on the Surface.
 
-After installation:
+1. Launch the installed app and allow microphone access in Edge.
+2. Open **Settings → Connections** and enter your OpenAI API key.
+3. Sign in with Google for Calendar and Hub Recipes.
+4. Select the calendars you want to display.
+5. Say the configured wake phrase, then a command.
 
-1. Launch **Kitchen Hub**.
-2. Allow microphone access in Edge once.
-3. Open **Settings → Connections** and enter an OpenAI API key.
-4. Select **Sign in with Google** to connect Calendar and the **Hub Recipes** spreadsheet.
-5. Say “Hub,” followed by a command.
-
-The API key, logs, wake phrase, and dedicated Edge profile are stored under `%LOCALAPPDATA%\KitchenHub\data`. Upgrades preserve this directory. See [SURFACE_SETUP.md](./SURFACE_SETUP.md) for the complete tablet checklist.
+The server data, API key, Google token, logs, wake phrase, and Edge profile live under `%LOCALAPPDATA%\KitchenHub\data`. Upgrades preserve this directory. See [Surface setup](SURFACE_SETUP.md).
 
 ## Run from source
-
-Development still works independently of the installer:
 
 ```powershell
 npm ci
@@ -29,72 +25,115 @@ npm run build
 npm run voice-server
 ```
 
-In another terminal:
+In a second terminal run `npm run wake-listener`. For frontend development, run `npm run dev` and open `http://127.0.0.1:5173/`. For the compiled app, open `http://127.0.0.1:8787/`.
 
-```powershell
-npm run wake-listener
-```
+Keep credentials in the ignored server `.env`; use `.env.example` as a template. Never put an OpenAI API key or Google secret in a `VITE_*` variable. Settings saves the API key and custom wake phrase locally.
 
-For live frontend development, run `npm run dev` and open `http://127.0.0.1:5173`. For the production-style path, open `http://127.0.0.1:8787` after `npm run build`.
+## Live Surface preview
 
-### Live Surface design preview
-
-To iterate on the interface without building an installer, connect the development computer and Surface to the same private network, then run:
+Connect both computers to the same trusted private network:
 
 ```powershell
 npm run dev:lan
 ```
 
-The command starts the API and local wake listener, then prints a private-network URL such as `http://192.168.1.74:5173/`. Open that URL in Edge on the Surface and keep the terminal open. Vite hot reload sends saved frontend changes to the Surface immediately. Wake phrases changed in **Settings → Connections** are persisted and reloaded immediately. On the first run, Windows may ask whether Node.js can communicate on the network; allow **Private networks** only.
+This starts the API, wake listener, and Vite preview and prints the LAN URL. Open it on the Surface. Saved frontend changes update through Vite without a GitHub commit/pull loop. If a client misses an update, press **Ctrl+Shift+R** there. Allow the development server on Private networks only if Windows prompts.
 
-LAN development also enables a visual monitor that reports each connected browser's current viewport, layout measurements, and a periodically refreshed screenshot. This lets the development computer inspect the Surface's actual rendering instead of approximating it with a desktop browser. Form controls are omitted from screenshots so API keys and other typed values are never captured. The monitor is enabled only by `npm run dev:lan`; it is absent from production builds and should be used only on a trusted private network.
+LAN development optionally enables a visual monitor at `/__kitchenhub/clients` with viewport/layout telemetry and screenshots. Form fields are omitted. It is absent from production builds and should only be used on a trusted private network.
 
-This HTTP preview is intended for visual iteration. Browsers generally require HTTPS for microphone capture on a remote device, so use the installed KitchenHub build when testing wake-word and voice behavior.
+### Voice testing through LAN
 
-The app creates or updates `.env` only when an API key or wake phrase is saved in Settings. This file is ignored by Git. Never place the API key in a `VITE_*` variable.
+Ordinary HTTP LAN tabs cannot capture microphone audio. Download `Hub-SurfaceVoice.ps1` from your preview URL, for example `http://192.168.1.74:5173/Hub-SurfaceVoice.ps1`, on the Surface. Run:
 
-## Google services and Hub Recipes
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Downloads\Hub-SurfaceVoice.ps1"
+```
 
-Kitchen Hub reads the primary Google Calendar and uses the existing **Hub Recipes** Google Sheet as its external recipe store. One shared OAuth session covers both services. Calendar remains read-only; recipe sync uses Google Sheets read/write access and Drive metadata access only to locate the spreadsheet by its exact name when `GOOGLE_RECIPES_SPREADSHEET_ID` is not configured. The refresh token stays on the local device.
+For another address, add `-PreviewUrl "http://YOUR-LAN-IP:5173/"`. The launcher opens a separate Edge profile at `%LOCALAPPDATA%\Hub\LanVoice` with a development-only secure-origin exception for that exact LAN address. Use it only on your trusted home network and allow the microphone when prompted.
 
-The project owner performs this developer setup once for every KitchenHub installation:
+Listening starts automatically while Hub is open. Say the displayed wake phrase, then “set a timer for one minute.” Audio goes through the development computer's local wake listener and voice API. The Surface does not need Python or Node for this preview. Service health checks do not replace an actual spoken-command test on the Surface.
 
-1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
-2. Enable the **Google Calendar API**, **Google Sheets API**, and **Google Drive API**.
-3. Configure the Google Auth consent screen. For a personal Google account, use an External audience and add your account as a test user while the app remains in testing.
-4. Create an OAuth client with application type **Desktop app**.
-5. Download the Desktop client credentials. Set the repository Actions variable `GOOGLE_CLIENT_ID` and Actions secret `GOOGLE_CLIENT_SECRET` to those values. Local developers can instead set both values in their ignored `.env` file.
-6. Build the installer. The build embeds the Desktop OAuth credentials in `app-config.json`.
+## Home screen and Cook Mode
 
-The app uses Authorization Code with PKCE and the desktop loopback return address `http://127.0.0.1:8787`. Google requires the client secret issued with this Desktop credential during token exchange; as with all installed applications, that value cannot be treated as confidential. Google tokens are stored as `google-calendar-token.json` in Kitchen Hub’s mutable data directory and survive application upgrades. Existing Calendar-only installations must use **Settings → Connections → Reconnect Google** once to grant the additional Sheets scopes.
+- Weather and Continue Cooking occupy the left column; Calendar gets roughly 65% of desktop width. Narrow screens stack the cards.
+- Recipe Lab, Timer, Recipes, and Settings share the home header utility group.
+- Calendar uses large wrapped titles, aligned times, cancellation strikethroughs, and reminder badges. Source calendar and platform labels are hidden from event rows.
+- Next Meeting prioritizes remaining meetings today, then searches the following year across selected calendars. Cancelled, declined, holiday, reminder, and all-day events are excluded. Distant meetings use a compact strip; near-start and active meetings emphasize timing. Join appears only within ten minutes before the meeting or while it is active.
+- Cook Mode persists the active recipe, working recipe edits, step, serving/scaling state, and checked ingredients. Completion clears the active session. Browser-local sessions are separate for each browser profile and origin.
 
-## Build the Windows installer
+## Live Weather
 
-On Windows with Node, Python 3.11, and Inno Setup 6 installed:
+Weather uses Open-Meteo forecast and air-quality data, with no demo fallback. It shows conditions, Fahrenheit temperature, daily range, AQI, peak daily UV, daily rain chance, humidity, feels-like temperature, and sunset. The service caches readings for ten minutes. Missing readings are marked unavailable; a provider failure uses a real cached reading with a stale notice or displays an error when no reading exists.
+
+Configure location in the server `.env`, then restart Node:
+
+```dotenv
+WEATHER_CITY=Los Angeles
+WEATHER_LATITUDE=34.0522
+WEATHER_LONGITUDE=-118.2437
+```
+
+Location is configured on the server rather than detected from the browser.
+
+## Google Calendar and Hub Recipes
+
+One desktop OAuth session serves Calendar and the **Hub Recipes** Google Sheet. Hub lists visible calendars and fetches each enabled calendar separately, including secondary, shared, and read-only calendars. Events merge chronologically with calendar-specific identities. A failed calendar does not discard successful calendars. Choose calendars in **Settings → Connections**; selections persist in `calendar-selections.json` on the server and apply to previews using that server. Disabling a calendar does not delete it from Google.
+
+Calendar access is read-only. Sheets access supports recipe synchronization; Drive metadata access locates the spreadsheet by exact name if `GOOGLE_RECIPES_SPREADSHEET_ID` is not configured.
+
+Developer setup:
+
+1. Enable Google Calendar, Sheets, and Drive APIs in the Google Cloud project.
+2. Configure the consent screen and add your Google account as a test user while the app is in testing.
+3. Create a **Desktop app** OAuth client and download its credentials.
+4. For local development, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`. For installer builds, set the Actions variable `GOOGLE_CLIENT_ID` and secret `GOOGLE_CLIENT_SECRET`.
+5. Optionally set `GOOGLE_RECIPES_SPREADSHEET_ID` to the recipe spreadsheet ID.
+
+The app uses Authorization Code with PKCE and the loopback callback `http://127.0.0.1:8787`. Desktop client credentials embedded in the installer are not confidential. User refresh tokens stay in `google-calendar-token.json` in the mutable server data directory. Existing Calendar-only connections may need **Reconnect Google** to grant Sheets scopes. Client credentials do not replace the user's initial sign-in and consent.
+
+## Windows installer build
+
+On Windows with Node/npm, Python 3.11, and Inno Setup 6:
 
 ```powershell
 npm run build:windows
 ```
 
-The result is `artifacts\KitchenHub-Setup-x.y.z.exe`, using the version from `package.json`. The build verifies the official portable Node download, compiles the frontend, packages the wake listener with PyInstaller, stages the wake model, and compiles the installer.
+Output: `artifacts\KitchenHub-Setup-<version>.exe`. The build verifies the official portable Node download, compiles the frontend, packages the wake listener, bundles wake models and production server modules, and compiles the installer.
 
-Tagged GitHub builds are automated. Push a version tag such as `v0.1.0`; the workflow builds the installer and attaches it to a GitHub Release. See [packaging/README.md](./packaging/README.md).
+The GitHub **Build Windows installer** workflow supports manual Actions artifacts and `v*` tags that publish release assets. A push to `main` alone does not publish an installer. See [packaging README](packaging/README.md).
 
 ## Local endpoints
 
-- `GET /api/voice/health` — local service, credentials, models, and wake phrase
-- `PUT /api/settings/openai-key` — validate and save the local API key
-- `PUT /api/settings/wake-phrase` — rebuild and activate the local wake phrase
-- `GET /api/calendar/status` — report local Google Calendar setup and connection state
-- `GET /api/calendar/oauth/start` — begin Google’s desktop OAuth flow
-- `GET /api/calendar/today` — fetch the primary calendar’s current-day events
-- `DELETE /api/calendar/connection` — remove the locally stored calendar token
-- `POST /api/voice/transcribe` — transcribe a command recording
-- `POST /api/voice/command` — return one schema-constrained application command
-- `POST /api/recipes/generate` — create a schema-constrained Recipe Lab draft
-- `GET /api/recipes` — load normalized recipes from Hub Recipes
-- `GET /api/recipes/search?q=…` — search normalized recipes
-- `POST /api/recipes` — save a normalized recipe to Hub Recipes
-- `PUT /api/recipes/:id` — update a normalized recipe in Hub Recipes
-- `GET /api/wake/events` — stream wake events to the browser
-- `POST /api/wake` — receive a detected wake event from the local listener
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/voice/health` | Voice configuration, models, wake phrase |
+| `PUT /api/settings/openai-key` | Validate and save API key locally |
+| `PUT /api/settings/wake-phrase` | Rebuild and activate wake phrase |
+| `GET /api/weather` | Live configured-location weather and stale status |
+| `GET /api/calendar/status` | Google connection status |
+| `GET /api/calendar/oauth/start` | Desktop Google sign-in |
+| `GET /api/calendar/list` | Visible calendars and selections |
+| `PUT /api/calendar/selection` | Save `{ id, selected }` |
+| `GET /api/calendar/today?timeMin=…&timeMax=…&timeZone=…` | Selected-calendar events for the requested window |
+| `DELETE /api/calendar/connection` | Remove local Google token |
+| `POST /api/voice/transcribe` | Command recording transcription |
+| `POST /api/voice/command` | Schema-constrained application command |
+| `POST /api/recipes/generate` | Recipe Lab draft |
+| `GET /api/recipes` | Normalized Hub Recipes |
+| `GET /api/recipes/search?q=…` | Recipe search |
+| `POST /api/recipes` | Save recipe |
+| `PUT /api/recipes/:id` | Update recipe |
+| `GET /api/wake/events` | Browser wake-event stream |
+| `POST /api/wake/audio` | Browser PCM forwarding to wake listener |
+| `POST /api/wake` | Detected wake notification |
+
+## Validation
+
+```powershell
+npm test
+npm run lint
+npm run build
+```
+
+Tests cover recipe normalization/scaling, multi-calendar selection/merging/failures, weather/cache behavior, event classification, countdown/Join timing, and Next Meeting presentation. Microphone permissions, real wake detection, audio output, and installer behavior require actual Surface testing.

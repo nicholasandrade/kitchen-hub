@@ -31,7 +31,7 @@ export function meetingLink(event: CalendarEvent) {
 export function presentEvent(event: CalendarEvent): DisplayEvent {
   const cancelled = Boolean(event.cancelled || /^cancel(?:l)?ed:\s*/i.test(event.title))
   const reminder = /^(reminder\s*[-:]|task\s*[-:])/i.test(event.title)
-    || event.eventType === 'task' || /\b(reminder|to[- ]?do)\b/i.test(event.title)
+    || /^(submit|prepare|send|complete|review items|follow up)\b/i.test(event.title) || event.eventType === 'task' || /\b(reminder|to[- ]?do)\b/i.test(event.title)
   const meeting = meetingLink(event)
   const displayTitle = event.title.replace(/^cancel(?:l)?ed:\s*/i, '').replace(/^(reminder|task)\s*[-:]\s*/i, '')
   const displayType: DisplayType = cancelled ? 'cancelled' : reminder ? 'reminder' : event.allDay ? 'all_day'
@@ -84,5 +84,30 @@ export function getNextMeetingPresentation(event: DisplayEvent, now: number) {
     when: date ? `${date} · ${time}` : time,
     relative: timing.active ? `Ends in ${ending} MIN` : `In ${relative}`,
     duration: Number.isFinite(duration) && duration > 0 ? `${duration} min` : '',
+  }
+}
+
+export function agendaForNextMeeting(events: DisplayEvent[], now: number) {
+  const upcoming = nextMeeting(events, now)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const remainingToday = events.some(event => !event.cancelled && !event.declined
+    && new Date(event.allDay ? `${event.start}T00:00:00` : event.start).getTime() < tomorrow.getTime()
+    && new Date(event.allDay ? `${event.end}T00:00:00` : event.end).getTime() > now)
+  const date = !remainingToday && upcoming ? new Date(upcoming.start) : today
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return {
+    date: start,
+    events: events.filter(event => {
+      if (event.id === upcoming?.id && event.calendarId === upcoming.calendarId) return false
+      const eventStart = new Date(event.allDay ? `${event.start}T00:00:00` : event.start).getTime()
+      const eventEnd = new Date(event.allDay ? `${event.end}T00:00:00` : event.end).getTime()
+      return eventStart < end.getTime() && eventEnd > start.getTime()
+    }).sort((a, b) => a.start.localeCompare(b.start)),
   }
 }

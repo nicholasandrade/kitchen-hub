@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getNextMeetingPresentation, homeNextMeeting, presentEvent, type CalendarEvent, type DisplayEvent } from './calendarPresentation'
+import { agendaForNextMeeting, getNextMeetingPresentation, homeNextMeeting, presentEvent, type CalendarEvent, type DisplayEvent } from './calendarPresentation'
 
 function time(event: DisplayEvent) {
   return event.allDay ? 'All day' : new Date(event.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -28,26 +28,23 @@ export function CalendarAgenda({ events, futureEvents = [] }: { events: Calendar
   const displayed = useMemo(() => events.map(presentEvent), [events])
   const futureDisplayed = useMemo(() => futureEvents.map(presentEvent), [futureEvents])
   const next = homeNextMeeting(displayed, futureDisplayed, now)
+  const agenda = agendaForNextMeeting([...displayed, ...futureDisplayed], now)
   const upcoming = next.event
   const state = upcoming ? getNextMeetingPresentation(upcoming, now) : null
+  const todayHasRemaining = displayed.some(event => !event.cancelled && !event.declined && new Date(event.allDay ? `${event.end}T00:00:00` : event.end).getTime() > now)
   return <div className="calendar-agenda">
+    {!todayHasRemaining ? <p className="calendar-day-status">Nothing else scheduled today.</p> : null}
     {upcoming && state ? <section className={`next-meeting meeting-strip is-${state.kind}${state.compact ? ' is-compact' : ''}${state.urgent ? ' is-urgent' : ''}${state.active ? ' is-active' : ''}`} aria-label="Up next">
-      {state.compact ? <>
-        <div className="meeting-strip-summary">
-          <div className="meeting-strip-heading"><p className="eyebrow">{state.label}</p><span>{state.when}{state.duration ? ` | ${state.duration}` : ''}</span></div>
-          <div className="meeting-strip-title"><h3>{upcoming.displayTitle}</h3></div>
-        </div>
-        <strong className="meeting-strip-relative">{state.relative}</strong>
-
-      </> : <>
-        <div className="meeting-countdown"><p className="eyebrow">{state.label}</p><strong>{state.value}</strong></div>
-        <div className="next-meeting-detail"><h3>{upcoming.displayTitle}</h3><p className="meeting-time">{state.active ? state.relative : state.when}{!state.active && state.duration ? ` · ${state.duration}` : ''}</p></div>
-      </>}
+      <div className="meeting-strip-summary">
+        <div className="meeting-strip-heading"><p className="eyebrow">{state.active ? 'Ends in' : state.label}</p><span>{state.when}{state.duration ? ` | ${state.duration}` : ''}</span></div>
+        <div className="meeting-strip-title"><h3>{upcoming.displayTitle}</h3></div>
+      </div>
+      <strong className="meeting-strip-relative">{state.active ? state.relative.replace('Ends in ', '') : state.compact ? state.relative : state.value}</strong>
       {state.canJoin ? <a className="meeting-join" href={upcoming.meetingUrl} target="_blank" rel="noopener noreferrer">Join ↗</a> : null}
-    </section> : <div className="no-more-meetings"><AgendaIcon />No more meetings today</div>}
-    <p className="agenda-label eyebrow">Day agenda</p>
+    </section> : null}
+    {agenda.events.length ? <><p className="agenda-label eyebrow">{agenda.date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })} agenda</p>
     <ol className="calendar-events">
-      {displayed.map(event => <li key={event.id} className={`agenda-event is-${event.displayType}${event.id === upcoming?.id ? ' is-next' : ''}${event.declined ? ' is-declined' : ''}`}>
+      {agenda.events.map(event => <li key={event.id} className={`agenda-event is-${event.displayType}${event.declined ? ' is-declined' : ''}`}>
         <AgendaTime event={event} />
         <span className="agenda-event-detail">
           {event.displayType === 'cancelled' ? <span className="event-badge is-cancelled">⊘ Cancelled</span>
@@ -58,6 +55,6 @@ export function CalendarAgenda({ events, futureEvents = [] }: { events: Calendar
           {event.location && !event.meetingPlatform && !/https?:\/\//i.test(event.location) ? <small>{event.location}</small> : null}
         </span>
       </li>)}
-    </ol>
+    </ol></> : null}
   </div>
 }

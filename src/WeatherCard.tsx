@@ -31,17 +31,17 @@ export function WeatherCard({ weather, visual = {}, notice }: { weather: Weather
   } as CSSProperties
   return <section className={`weather-card display-panel${visual.imageUrl ? ' has-image' : ''}`} style={style} aria-label={`Weather in ${weather.city}`}>
     <div className="weather-hero">
-      <div className="weather-heading"><div><p className="eyebrow">{weather.city}</p><span className="weather-condition">{weather.condition}</span></div><WeatherGlyph icon={weather.icon} /></div>
+      <div className="weather-heading"><div><p className="eyebrow">{weather.city}</p><span className="weather-condition">{weather.condition}</span></div><div className="weather-header-controls"><WeatherGlyph icon={weather.icon} /><details className="weather-info"><summary aria-label="Weather data information">ⓘ</summary><div>Weather data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> · <a href="https://atmosphere.copernicus.eu/" target="_blank" rel="noopener noreferrer">CAMS</a> · CC BY 4.0. UV and rain chance are daily forecasts. Sunset is today’s recorded forecast time, including after it has passed.</div></details></div></div>
       <div className="weather-primary"><strong>{weather.currentTemp}°</strong><span><b>H {value(weather.highTemp, '°')}</b><b>L {value(weather.lowTemp, '°')}</b></span></div>
     </div>
     <div className="weather-metrics">
       <WeatherMetric label="AQI" icon="≋" value={value(weather.aqi)} detail={weather.aqiCategory} severity={weather.aqi === null ? undefined : weather.aqi <= 50 ? 'positive' : weather.aqi <= 100 ? 'caution' : 'warning'} />
-      <WeatherMetric label="UV" icon="☼" value={value(weather.uvIndex)} detail={weather.uvCategory} severity={weather.uvIndex === null ? undefined : weather.uvIndex < 3 ? 'positive' : weather.uvIndex < 6 ? 'caution' : 'warning'} />
-      <WeatherMetric label="Rain" icon="☂" value={value(weather.precipitationChance, '%')} severity="water" />
+      <WeatherMetric label="Peak UV" icon="☼" value={value(weather.uvIndex)} detail={weather.uvCategory} severity={weather.uvIndex === null ? undefined : weather.uvIndex < 3 ? 'positive' : weather.uvIndex < 6 ? 'caution' : 'warning'} />
+      <WeatherMetric label="Rain chance" icon="☂" value={value(weather.precipitationChance, '%')} severity="water" />
       <WeatherMetric label="Humidity" icon="◒" value={value(weather.humidity, '%')} severity="water" />
       <WeatherMetric label="Feels like" icon="≈" value={value(weather.feelsLike, '°')} />
-      <WeatherMetric label="Sunset" icon="☷" value={weather.sunset} />
+      <WeatherMetric label="Today’s sunset" icon="☷" value={weather.sunset} />
     </div>
-    <div className="weather-attribution">{notice ? <span role="status">{notice}</span> : <span>Today’s rain chance · peak UV</span>}<a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo · CAMS</a></div>
+    {notice ? <p className="weather-notice" role="status">{notice}</p> : null}
   </section>
 }

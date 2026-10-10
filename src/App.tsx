@@ -4,8 +4,10 @@ import { localRecipeRepository, sheetsRecipeRepository, type RecipeDraft } from 
 import { localCookingSessionRepository } from './cookingSessionRepository'
 import { LiveWeatherCard } from './home/LiveWeatherCard'
 import { CalendarAgenda } from './home/CalendarAgenda'
+import { cookingProgress } from './home/cookingProgress'
 import type { CalendarEvent } from './home/calendarPresentation'
 import './home/home.css'
+import './themes.css'
 import { AttentionLayer, type AttentionReminder } from './components/AttentionLayer'
 import { LiveDock } from './components/LiveDock'
 import { TimerView } from './components/TimerView'
@@ -289,6 +291,7 @@ function App() {
   const [calendarConnection, setCalendarConnection] = useState<CalendarConnectionState>('loading')
   const [recipesAuthorized, setRecipesAuthorized] = useState(false)
   const [calendarLoadState, setCalendarLoadState] = useState<CalendarLoadState>('idle')
+  const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [hubCalendars, setHubCalendars] = useState<HubCalendar[]>([])
   const [calendarSaving, setCalendarSaving] = useState(false)
   const [calendarSelectionError, setCalendarSelectionError] = useState('')
@@ -328,7 +331,7 @@ function App() {
   const scale = useMemo(() => {
     try { return getRecipeScaleFactor(workingRecipe, scaleRequest) } catch { return 1 }
   }, [scaleRequest, workingRecipe])
-  const progress = ((step + 1) / workingRecipe.steps.length) * 100
+  const progress = cookingProgress(step, workingRecipe.steps.length)
   const currentInstruction = workingRecipe.steps[step]
   const isLongStep = currentInstruction.length > 115
   const currentVoiceMessage = voiceMessages[voiceMessages.length - 1]
@@ -1262,7 +1265,8 @@ function App() {
   }
 
   const loadTodayCalendar = async () => {
-    setCalendarLoadState('loading')
+    setCalendarRefreshing(true)
+    setCalendarLoadState(state => state === 'ready' || state === 'empty' ? state : 'loading')
     try {
       const start = new Date()
       start.setHours(0, 0, 0, 0)
@@ -1283,8 +1287,10 @@ function App() {
       setCalendarLoadState(events.length ? 'ready' : result.errors?.length ? 'error' : 'empty')
       setCalendarMessage(result.errors?.length ? `Could not refresh: ${result.errors.map((item: { calendarName: string }) => item.calendarName).join(', ')}. Other calendars are shown.` : '')
     } catch (error) {
-      setCalendarLoadState('error')
+      setCalendarLoadState(state => state === 'ready' || state === 'empty' ? state : 'error')
       setCalendarMessage(error instanceof Error ? error.message : 'Today’s calendar could not be loaded.')
+    } finally {
+      setCalendarRefreshing(false)
     }
   }
 
@@ -1668,11 +1674,11 @@ function App() {
               <LiveWeatherCard />
               <button className={`hub-card cooking-app ${hasActiveRecipe ? '' : 'is-empty'}`} type="button" onClick={() => hasActiveRecipe ? setActiveView('cooking') : setLibraryOpen(true)}>
                 {hasActiveRecipe ? (
-                  <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><small>Step {step + 1} of {workingRecipe.steps.length} · {formatRecipeTime(workingRecipe.minutes)}</small></span>
+                  <span className="hub-card-copy"><span className="hub-card-kicker">Continue cooking</span><strong>{workingRecipe.name}</strong><span className="cooking-step">Step {step + 1} of {workingRecipe.steps.length}</span><small>{formatRecipeTime(workingRecipe.minutes)} total recipe time</small><span className="cooking-progress" role="progressbar" aria-label="Recipe step progress" aria-valuemin={0} aria-valuemax={workingRecipe.steps.length} aria-valuenow={step + 1}><span style={{ width: `${progress}%` }} /></span></span>
                 ) : (
                   <span className="hub-card-copy"><span className="hub-card-kicker">Ready when you are</span><strong>Choose your next recipe</strong><small>Browse saved recipes or start with an idea from Recipe Lab.</small></span>
                 )}
-                <span className="hub-card-action">{hasActiveRecipe ? 'Open cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
+                <span className="hub-card-action">{hasActiveRecipe ? 'Resume cooking' : 'Choose a recipe'} <b aria-hidden="true">→</b></span>
               </button>
             </div>
             <section className="calendar-card display-panel" aria-labelledby="calendar-title">
@@ -1680,7 +1686,7 @@ function App() {
                 <div><p className="eyebrow">Today</p><h2 id="calendar-title">{todayLabel}</h2></div>
                 <span className="calendar-source">Google Calendar</span>
               </header>
-              <div className="calendar-content" aria-live="polite">
+              <div className={`calendar-content${calendarRefreshing ? ' is-refreshing' : ''}`} aria-live="polite" aria-busy={calendarRefreshing}>
                 {calendarConnection === 'loading' || calendarLoadState === 'loading' ? (
                   <div className="calendar-skeleton" aria-label="Loading today’s calendar"><i /><i /><i /><i /></div>
                 ) : calendarConnection !== 'connected' ? (

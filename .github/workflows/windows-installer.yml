@@ -58,6 +58,10 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: ./packaging/build-windows.ps1 -AppVersion '${{ steps.version.outputs.value }}'
 
+      - name: Verify real automatic update and restart
+        shell: powershell
+        run: node packaging/verify-auto-update.mjs 'artifacts/KitchenHub-Setup-${{ steps.version.outputs.value }}.exe'
+
       - uses: actions/upload-artifact@v4
         with:
           name: KitchenHub-Setup-${{ steps.version.outputs.value }}

@@ -8,6 +8,7 @@ import { createSheetsRecipeStore } from './sheetsRecipes.mjs'
 import { createCalendarStore } from './calendars.mjs'
 import { createWeatherService } from './weather.mjs'
 import { createUpdateService } from './updates.mjs'
+import { createInstallerUpdater } from './installerUpdates.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const dist = join(root, 'dist')
@@ -20,6 +21,7 @@ const readAppConfig = () => {
 }
 const currentVersion = readAppConfig().version || JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 const updates = createUpdateService({ currentVersion })
+const installerUpdates = createInstallerUpdater({ updates, currentVersion, appRoot: root, dataDirectory })
 const readLocalEnv = () => {
   const values = {}
   if (!existsSync(envPath)) return values
@@ -549,6 +551,21 @@ const serveStatic = async (request, response) => {
 
 const server = createServer(async (request, response) => {
   try {
+    if (request.method === 'GET' && request.url === '/api/updates/install-status') {
+      return sendJson(response, 200, await installerUpdates.status())
+    }
+    if (request.method === 'POST' && ['/api/updates/download', '/api/updates/install', '/api/updates/settings'].includes(request.url)) {
+      const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`]
+      if (!allowedHosts.includes(request.headers.host) || (request.headers.origin && !allowedHosts.some(host => request.headers.origin === `http://${host}`)) || request.headers['content-type']?.split(';')[0].trim() !== 'application/json') {
+        return sendJson(response, 403, { error: 'Start updates from the local Hub app.' })
+      }
+      if (request.url.endsWith('/settings')) {
+        const values = JSON.parse((await readBody(request, 4096)).toString('utf8') || '{}')
+        if (!values || Array.isArray(values) || typeof values !== 'object') return sendJson(response, 400, { error: 'Invalid automatic update settings.' })
+        return sendJson(response, 200, await installerUpdates.saveSettings(values))
+      }
+      return sendJson(response, 202, request.url.endsWith('/download') ? await installerUpdates.download() : await installerUpdates.install())
+    }
     if (request.method === 'GET' && request.url === '/api/updates') {
       response.setHeader('Cache-Control', 'no-store')
       return sendJson(response, 200, await updates.check())
@@ -599,6 +616,7 @@ const server = createServer(async (request, response) => {
 })
 
 server.listen(port, '127.0.0.1', () => {
+  void installerUpdates.startAutomaticUpdates()
   const { configured } = getConfig()
   console.log(`Hub voice server listening on http://127.0.0.1:${port}`)
   console.log(configured ? 'OpenAI voice service configured.' : 'OPENAI_API_KEY is not set; health checks work but voice requests will return 503.')

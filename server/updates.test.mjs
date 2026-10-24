@@ -18,6 +18,7 @@ test.each([
   expect(await service.check()).toEqual({
     currentVersion, latestVersion, updateAvailable,
     releaseUrl: `${repository}/releases/tag/v${latestVersion}`, checkedAt: '1970-01-01T00:00:00.000Z',
+    installerUrl: `${repository}/releases/download/v${latestVersion}/KitchenHub-Setup-${latestVersion}.exe`,
   })
   expect(fetchImpl).toHaveBeenCalledWith(`${repository}/releases/latest`, expect.objectContaining({ method: 'HEAD', redirect: 'follow', signal: expect.any(AbortSignal) }))
 })
@@ -35,11 +36,11 @@ test.each([
   await expect(service.check()).rejects.toThrow(/invalid|untrusted/)
 })
 
-test('404 reports no releases and caches the successful check', async () => {
+test('404 reports inaccessible releases instead of a successful no-update check', async () => {
   const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 404, url: `${repository}/releases/latest` })
   const service = createUpdateService({ currentVersion: '1.0.0', fetchImpl })
-  expect(await service.check()).toMatchObject({ latestVersion: null, updateAvailable: false, releaseUrl: '' })
-  await service.check()
+  await expect(service.check()).rejects.toThrow('private repository requires authenticated update access')
+  await expect(service.check()).rejects.toThrow('HTTP 404')
   expect(fetchImpl).toHaveBeenCalledTimes(1)
 })
 

@@ -35,6 +35,8 @@ Program files are installed in `%LOCALAPPDATA%\Programs\KitchenHub`. Mutable dat
 
 Installing a newer version replaces program files and preserves the data directory. Browser-backed recipe/session state also remains tied to the unchanged `http://127.0.0.1:8787` origin.
 
+Starting with 0.1.8, Hub automatically downloads and installs new releases and restarts itself. This is on by default; disable **Settings → App updates → Install updates automatically** to use manual updates. The interval defaults to 30 seconds. Versions before 0.1.8 need one manual installer run to enable this feature.
+
 Uninstalling Kitchen Hub intentionally leaves the data directory in place so reinstalling does not discard credentials or state. It can be removed manually after uninstall if a complete reset is desired.
 
 ## Real-kitchen test

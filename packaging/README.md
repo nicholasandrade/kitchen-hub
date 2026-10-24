@@ -11,6 +11,14 @@ The installer preserves the React/Vite frontend, local Node API, sherpa-onnx wak
 
 The product is named **Hub**. Existing `KitchenHub` installer filenames and Windows data paths remain for compatibility.
 
+## Automatic updates
+
+Installed Windows builds download and install new GitHub releases automatically, then restart Hub. Automatic updates default to on. Turn off **Settings → App updates → Install updates automatically** for manual download/install controls. The check interval defaults to 30 seconds and is saved with the automatic-update preference in the user data directory, so updates work independently of the browser UI.
+
+The updater accepts only the matching versioned installer from this repository. It verifies the GitHub asset size and SHA-256 digest after download and verifies the file again immediately before installation. A detached PowerShell helper runs the per-user installer silently, waits for completion, checks the installed version, and relaunches Hub. Settings, tokens, and the Edge profile remain outside program files. Errors remain visible in App updates; installer logs are saved in the user data `updates` directory.
+
+Installer CI exercises an actual automatic upgrade, server restart, and data preservation before publishing. Builds older than 0.1.8 require a one-time manual installation to gain automatic updating.
+
 ## Installed layout
 
 ```text

@@ -1,3 +1,5 @@
+import { installerUrl } from './installerUpdates.mjs'
+
 const REPOSITORY_URL = 'https://github.com/nicholasandrade/kitchen-hub'
 const LATEST_URL = `${REPOSITORY_URL}/releases/latest`
 const VERSION = /^v?(\d+\.\d+\.\d+(?:\.\d+)?)$/
@@ -40,6 +42,9 @@ export function createUpdateService({ currentVersion, fetchImpl = fetch, now = D
       if (response.status === 404 && response.url !== LATEST_URL) {
         throw new Error('GitHub returned an untrusted or invalid release URL.')
       }
+      if (response.status === 404) {
+        throw new Error('GitHub releases are inaccessible (HTTP 404). A private repository requires authenticated update access. This does not mean Hub is up to date.')
+      }
       if (response.status !== 404) {
         if (!response.ok) {
           if (response.status === 429 || response.status === 503) {
@@ -63,6 +68,7 @@ export function createUpdateService({ currentVersion, fetchImpl = fetch, now = D
         currentVersion, latestVersion,
         updateAvailable: latestVersion !== null && isNewer(latestVersion, current),
         releaseUrl, checkedAt: new Date(now()).toISOString(),
+        installerUrl: latestVersion ? installerUrl(latestVersion) : '',
       }
       cached = result
       cacheUntil = now() + 5000

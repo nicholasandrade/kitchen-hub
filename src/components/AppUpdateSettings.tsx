@@ -28,9 +28,12 @@ function UpdateAction({ updates }: { updates: AppUpdates }) {
 }
 
 export function AppUpdateBanner({ updates }: { updates: AppUpdates }) {
-  if (!updates.result?.updateAvailable && !['downloading', 'ready', 'installing', 'error'].includes(updates.installStatus?.phase || '')) return null
+  const phase = updates.installStatus?.phase
+  const activeInstall = ['downloading', 'ready', 'installing'].includes(phase || '')
+  if (!updates.result?.updateAvailable && !activeInstall) return null
+  const version = activeInstall ? updates.installStatus?.version : updates.result?.latestVersion
   return <aside className="app-update-banner" role="status">
-    <span>Hub {updates.installStatus?.version || updates.result?.latestVersion} is available.</span>
+    <span>{version ? `Hub ${version} is available.` : 'Hub update in progress.'}</span>
     <UpdateAction updates={updates} />
   </aside>
 }
@@ -45,7 +48,7 @@ export function AppUpdateSettings({ updates }: { updates: AppUpdates }) {
       <div>
         <strong>{updates.result?.updateAvailable ? `Hub ${updates.result.latestVersion} is available` : updates.error ? 'Release check unavailable' : updates.checking ? 'Checking GitHub' : updates.result ? updates.result.latestVersion === null ? 'No published release found' : 'Hub is up to date' : 'Checking for releases'}</strong>
         <p>{updates.error || (updates.result ? `Current version: ${updates.result.currentVersion}. Last checked: ${new Date(updates.result.checkedAt).toLocaleTimeString()}.` : 'Looking for the latest published Hub release.')}</p>
-        {updates.result?.updateAvailable || ['downloading', 'ready', 'installing', 'error'].includes(updates.installStatus?.phase || '') ? <UpdateAction updates={updates} /> : null}
+        {updates.result?.updateAvailable || ['downloading', 'ready', 'installing'].includes(updates.installStatus?.phase || '') ? <UpdateAction updates={updates} /> : null}
       </div>
     </div>
     <div className="connection-form">

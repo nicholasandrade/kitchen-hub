@@ -227,3 +227,17 @@ test.each(['0.1.8', '0.1.9'])('discards an already-installed or older persisted 
   await expect(upgraded.install()).rejects.toThrow('Download and verify')
   expect(launch).not.toHaveBeenCalled()
 })
+
+
+test('clears persisted stale installer errors once latest release is already installed', async () => {
+  const { service, config, updates, fetchImpl, dataDirectory } = await fixture({ currentVersion: version })
+  updates.check.mockResolvedValue({ updateAvailable: false, latestVersion: version })
+  await service.download()
+  await waitForPhase(service, 'error')
+  expect((await service.status()).error).toContain('No newer')
+  updates.check.mockResolvedValue({ updateAvailable: false, latestVersion: version })
+  expect(await service.runAutomaticUpdate()).toMatchObject({ phase: 'idle' })
+  expect(JSON.parse(await readFile(join(dataDirectory, 'updates', 'status.json'), 'utf8'))).toEqual({ phase: 'idle' })
+  expect(await createInstallerUpdater(config).status()).toMatchObject({ phase: 'idle' })
+  expect(fetchImpl).not.toHaveBeenCalled()
+})

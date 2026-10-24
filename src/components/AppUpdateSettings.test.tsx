@@ -138,3 +138,13 @@ test('polls at startup and the chosen interval, and cancels old timers', () => {
     expect(check).toHaveBeenCalledTimes(5)
   } finally { vi.useRealTimers() }
 })
+
+
+test('hides stale installer errors when installed version is current', () => {
+  const current = { ...release, currentVersion: '0.2.0', latestVersion: '0.2.0', updateAvailable: false }
+  const updates = state({ result: current, installStatus: status({ currentVersion: '0.2.0', phase: 'error', version: '0.2.0', error: 'No newer Hub version is available.' }) })
+  expect(renderToStaticMarkup(<AppUpdateBanner updates={updates} />)).toBe('')
+  const settings = renderToStaticMarkup(<AppUpdateSettings updates={updates} />)
+  expect(settings).toContain('Hub is up to date')
+  expect(settings).not.toContain('Retry download')
+})

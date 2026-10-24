@@ -33,15 +33,32 @@ async function hashFile(path) {
 
 function launchPowerShell(script, args, onFailure) {
   return new Promise((resolve, reject) => {
-    const logPath = join(dirname(script), 'update-helper.log')
+    const logPath = join(dirname(script), 'update-launch.log')
+    const helperLog = join(dirname(script), 'update-helper.log')
+    const helperError = join(dirname(script), 'update-helper-error.log')
+    const literal = value => `'${value.replace(/'/g, "''")}'`
+    const nativeArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, ...args]
+    if (nativeArgs.some(value => /["\r\n\0]/.test(value))) return reject(new Error('Invalid Windows update path.'))
+    const argumentsText = nativeArgs.map(value => `"${value}"`).join(' ')
+    // Windows Start-Process gives the helper its own hidden console. Direct
+    // attached children die with Node; Node's detached PowerShell mode can exit
+    // without executing the script. The short broker exits before Hub stops.
+    const command = `$ErrorActionPreference = 'Stop'; Start-Process -FilePath 'powershell.exe' -ArgumentList ${literal(argumentsText)} -WindowStyle Hidden -RedirectStandardOutput ${literal(helperLog)} -RedirectStandardError ${literal(helperError)} | Out-Null`
+    const encoded = Buffer.from(command, 'utf16le').toString('base64')
     const log = openSync(logPath, 'a')
-    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, ...args], {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], {
       windowsHide: true, stdio: ['ignore', log, log],
     })
     closeSync(log)
     child.once('error', reject)
-    child.once('exit', code => { if (code !== 0) void onFailure(new Error(`Windows update helper failed (${code}). See ${logPath}`)) })
-    child.once('spawn', () => { child.unref(); resolve() })
+    child.once('exit', code => {
+      if (code === 0) resolve()
+      else {
+        const error = new Error(`Windows update launcher failed (${code}). See ${logPath}`)
+        void onFailure(error)
+        reject(error)
+      }
+    })
   })
 }
 

@@ -7,8 +7,7 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, readFile, writeFile, stat, readdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { Readable } from 'node:stream'
-import { createInstallerUpdater, installerUrl } from '../server/installerUpdates.mjs'
+import { installerUrl } from '../server/installerUpdates.mjs'
 
 if (process.platform !== 'win32' || process.env.CI !== 'true') throw new Error('The installer smoke test must run on an isolated Windows CI runner.')
 const execute = promisify(execFile)
@@ -57,33 +56,48 @@ try {
   await writeFile(join(dataDirectory, 'updates', 'settings.json'), JSON.stringify({ automaticUpdates: false, intervalSeconds: 86400 }))
   const sentinel = join(dataDirectory, 'edge-profile', 'update-preservation-check.txt')
   await writeFile(sentinel, 'preserve existing user data')
+  const size = (await stat(installer)).size
+  const hash = createHash('sha256')
+  for await (const chunk of createReadStream(installer)) hash.update(chunk)
+  const digest = `sha256:${hash.digest('hex')}`
+  const downloadUrl = installerUrl(version)
+  const metadata = { tag_name: `v${version}`, assets: [{ name: `KitchenHub-Setup-${version}.exe`, size, digest, browser_download_url: downloadUrl }] }
+  // Only the disposable old installation gets a fake release transport. Its
+  // real server scheduler must launch the updater and then be killed by Setup.
+  // The new installer replaces index.mjs, removing this fixture import.
+  const fixture = `import {createReadStream} from 'node:fs';
+import {Readable} from 'node:stream';
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, options) => {
+  if (url === 'https://github.com/nicholasandrade/kitchen-hub/releases/latest') {
+    const response = new Response(null, {status:200});
+    Object.defineProperty(response, 'url', {value:${JSON.stringify(`https://github.com/nicholasandrade/kitchen-hub/releases/tag/v${version}`)}});
+    return response;
+  }
+  if (url === ${JSON.stringify(`https://api.github.com/repos/nicholasandrade/kitchen-hub/releases/tags/v${version}`)}) return Response.json(${JSON.stringify(metadata)});
+  if (url === ${JSON.stringify(downloadUrl)}) {
+    const response = new Response(Readable.toWeb(createReadStream(${JSON.stringify(installer)})));
+    Object.defineProperty(response, 'url', {value:url}); return response;
+  }
+  return realFetch(url, options);
+};`
+  await writeFile(join(appRoot, 'server', 'update-smoke-fixture.mjs'), fixture)
+  const indexPath = join(appRoot, 'server', 'index.mjs')
+  await writeFile(indexPath, "import './update-smoke-fixture.mjs'\n" + await readFile(indexPath, 'utf8'))
   console.log('Smoke: starting installed server and wake listener.')
   await runPowerShell(join(installRoot, 'launcher', 'Start-KitchenHub.ps1'))
   console.log('Smoke: launcher returned.')
   const wakePidPath = join(dataDirectory, 'pids', 'wake.pid')
   const initialWakePid = (await readFile(wakePidPath, 'utf8')).trim()
+  const serverPidPath = join(dataDirectory, 'pids', 'server.pid')
+  const initialServerPid = (await readFile(serverPidPath, 'utf8')).trim()
   await waitFor('initial installed server', async () => (await fetch('http://127.0.0.1:8787/api/voice/health', { signal: AbortSignal.timeout(2000) })).ok)
-  const size = (await stat(installer)).size
-  const hash = createHash('sha256')
-  for await (const chunk of createReadStream(installer)) hash.update(chunk)
-  const digest = `sha256:${hash.digest('hex')}`
-  const updater = createInstallerUpdater({
-    currentVersion: '0.0.1', appRoot, dataDirectory,
-    updates: { check: async () => ({ updateAvailable: true, latestVersion: version }) },
-    fetchImpl: async url => {
-      if (url.startsWith('https://api.github.com/')) return Response.json({ tag_name: `v${version}`, assets: [{ name: `KitchenHub-Setup-${version}.exe`, size, digest, browser_download_url: installerUrl(version) }] })
-      assert.equal(url, installerUrl(version))
-      const response = new Response(Readable.toWeb(createReadStream(installer)))
-      Object.defineProperty(response, 'url', { value: url })
-      return response
-    },
-  })
-  await updater.saveSettings({ automaticUpdates: true, intervalSeconds: 86400 })
-  assert.equal((await updater.runAutomaticUpdate()).phase, 'installing')
-  console.log('Smoke: automatic download verified; detached installer launched.')
+  const enabled = await fetch('http://127.0.0.1:8787/api/updates/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ automaticUpdates: true, intervalSeconds: 5 }), signal: AbortSignal.timeout(2000) })
+  assert.equal(enabled.status, 200)
+  console.log('Smoke: installed server automatic updates enabled; waiting for its scheduler.')
   await waitFor('automatic installation and restarted server', async () => {
     const response = await fetch('http://127.0.0.1:8787/api/updates/install-status', { signal: AbortSignal.timeout(2000) })
-    return response.ok && (await response.json()).currentVersion === version
+    return response.ok && (await response.json()).currentVersion === version && (await readFile(serverPidPath, 'utf8')).trim() !== initialServerPid
   })
   await waitFor('restarted wake listener and browser launch', async () => {
     const response = await fetch('http://127.0.0.1:8788/health', { signal: AbortSignal.timeout(2000) })

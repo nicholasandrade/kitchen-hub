@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
+import { spawn } from 'node:child_process'
 import { createInstallerUpdater, installerUrl } from './installerUpdates.mjs'
 
 const roots = []
@@ -174,6 +175,31 @@ test.skipIf(process.platform !== 'win32')('real Windows PowerShell handoff reach
     throw error
   }
 }, 10000)
+
+test.skipIf(process.platform !== 'win32')('Windows helper survives its actual launching Node process being forcibly stopped', async () => {
+  const { service, config } = await fixture()
+  const source = await readFile(new URL('../packaging/launcher/Install-KitchenHubUpdate.ps1', import.meta.url), 'utf8')
+  await writeFile(join(config.appRoot, '..', 'launcher', 'Install-KitchenHubUpdate.ps1'), source.split("$ErrorActionPreference =")[0] + "Start-Sleep -Seconds 2\n[IO.File]::WriteAllText($StatePath, '{\"phase\":\"error\",\"error\":\"survived parent termination\"}')")
+  await service.download()
+  await waitForPhase(service, 'ready')
+  const parentScript = join(config.appRoot, 'parent-probe.mjs')
+  const handshake = join(config.appRoot, 'broker-started.txt')
+  const moduleUrl = new URL('./installerUpdates.mjs', import.meta.url).href
+  await writeFile(parentScript, `import {createInstallerUpdater} from ${JSON.stringify(moduleUrl)};import {writeFile} from 'node:fs/promises';const updater=createInstallerUpdater(${JSON.stringify({ currentVersion: '0.1.7', appRoot: config.appRoot, dataDirectory: config.dataDirectory })});await updater.install();await writeFile(${JSON.stringify(handshake)},'ready');setInterval(()=>{},1000);`)
+  const parent = spawn(process.execPath, [parentScript], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
+  let parentError = ''
+  parent.stderr.on('data', chunk => { parentError += chunk })
+  const closed = new Promise((done, reject) => { parent.once('close', done); parent.once('error', reject) })
+  try {
+    await vi.waitFor(async () => expect(await readFile(handshake, 'utf8')).toBe('ready'), { timeout: 5000 })
+    parent.kill()
+    await closed
+    await vi.waitFor(async () => expect(JSON.parse(await readFile(join(config.dataDirectory, 'updates', 'status.json'), 'utf8')).error).toBe('survived parent termination'), { timeout: 5000 })
+  } catch (error) {
+    console.error('Harmless parent probe diagnostics:', parentError)
+    throw error
+  } finally { if (parent.exitCode === null) parent.kill() }
+}, 15000)
 
 test('disabling automatic updates during a download prevents its automatic installation', async () => {
   const { service, fetchImpl, launch } = await fixture()

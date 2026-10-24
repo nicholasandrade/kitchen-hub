@@ -159,6 +159,22 @@ test('simultaneous settings saves preserve both the opt-out and the check interv
   expect(await resumed.status()).toMatchObject({ automaticUpdates: false, intervalSeconds: 60 })
 })
 
+test.skipIf(process.platform !== 'win32')('real Windows PowerShell handoff reaches a helper in paths containing spaces', async () => {
+  const { service, config } = await fixture({ launch: undefined })
+  const source = await readFile(new URL('../packaging/launcher/Install-KitchenHubUpdate.ps1', import.meta.url), 'utf8')
+  const probe = source.split("$ErrorActionPreference =")[0] + "[IO.File]::WriteAllText($StatePath, '{\"phase\":\"error\",\"error\":\"probe launched\"}')"
+  await writeFile(join(config.appRoot, '..', 'launcher', 'Install-KitchenHubUpdate.ps1'), probe)
+  await service.download()
+  await waitForPhase(service, 'ready')
+  await service.install()
+  try {
+    await vi.waitFor(async () => expect(await service.status()).toMatchObject({ phase: 'error', error: 'probe launched' }), { timeout: 8000 })
+  } catch (error) {
+    console.error('Harmless helper probe log:', await readFile(join(config.dataDirectory, 'updates', 'update-helper.log'), 'utf8').catch(() => 'missing'))
+    throw error
+  }
+}, 10000)
+
 test('disabling automatic updates during a download prevents its automatic installation', async () => {
   const { service, fetchImpl, launch } = await fixture()
   const normalFetch = fetchImpl.getMockImplementation()

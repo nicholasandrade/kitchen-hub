@@ -24,7 +24,11 @@ const runPowerShell = script => new Promise((done, reject) => {
   const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-NoBrowser'], { windowsHide: true, stdio: 'ignore' })
   const timer = setTimeout(() => { child.kill(); reject(new Error('Installed launcher did not return within 90 seconds.')) }, 90_000)
   child.once('error', error => { clearTimeout(timer); reject(error) })
-  child.once('exit', code => { clearTimeout(timer); code === 0 ? done() : reject(new Error(`Installed launcher failed (${code}). Inspect service diagnostics below.`)) })
+  child.once('exit', code => {
+    clearTimeout(timer)
+    if (code === 0) done()
+    else reject(new Error(`Installed launcher failed (${code}). Inspect service diagnostics below.`))
+  })
 })
 const stopScript = join(installRoot, 'launcher', 'Stop-KitchenHub.ps1')
 const sleep = ms => new Promise(done => setTimeout(done, ms))

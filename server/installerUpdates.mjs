@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream, existsSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync, openSync, closeSync } from 'node:fs'
 import { mkdir, readFile, rename, stat, unlink, writeFile, copyFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { spawn } from 'node:child_process'
@@ -31,12 +31,16 @@ async function hashFile(path) {
   return hash.digest('hex')
 }
 
-function launchPowerShell(script, args) {
+function launchPowerShell(script, args, onFailure) {
   return new Promise((resolve, reject) => {
+    const logPath = join(dirname(script), 'update-helper.log')
+    const log = openSync(logPath, 'a')
     const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, ...args], {
-      detached: true, windowsHide: true, stdio: 'ignore',
+      windowsHide: true, stdio: ['ignore', log, log],
     })
+    closeSync(log)
     child.once('error', reject)
+    child.once('exit', code => { if (code !== 0) void onFailure(new Error(`Windows update helper failed (${code}). See ${logPath}`)) })
     child.once('spawn', () => { child.unref(); resolve() })
   })
 }
@@ -205,7 +209,7 @@ export function createInstallerUpdater({ updates, currentVersion, appRoot, dataD
         const helper = join(directory, 'Install-KitchenHubUpdate.ps1')
         await copyFile(helperSource, helper)
         await persist({ phase: 'installing', version: ready.version })
-        await launch(helper, ['-InstallerPath', path, '-ExpectedHash', ready.digest.slice(7), '-InstallRoot', installRoot, '-StatePath', statePath, '-Version', ready.version])
+        await launch(helper, ['-InstallerPath', path, '-ExpectedHash', ready.digest.slice(7), '-InstallRoot', installRoot, '-StatePath', statePath, '-Version', ready.version], fail)
         return status()
       } catch (error) {
         artifact = null

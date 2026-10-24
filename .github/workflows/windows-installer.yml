@@ -59,6 +59,7 @@ jobs:
         run: ./packaging/build-windows.ps1 -AppVersion '${{ steps.version.outputs.value }}'
 
       - name: Verify real automatic update and restart
+        timeout-minutes: 8
         shell: powershell
         run: node packaging/verify-auto-update.mjs 'artifacts/KitchenHub-Setup-${{ steps.version.outputs.value }}.exe'
 

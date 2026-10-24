@@ -88,6 +88,7 @@ try {
     Set-Content -LiteralPath (Join-Path $pidRoot 'edge.pid') -Value $edgeProcess.Id -Encoding ascii
   }
 } catch {
+  if ($env:KITCHEN_HUB_NONINTERACTIVE -eq '1') { throw }
   Add-Type -AssemblyName System.Windows.Forms
   [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Kitchen Hub could not start', 'OK', 'Error') | Out-Null
   exit 1

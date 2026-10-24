@@ -187,7 +187,14 @@ export function createInstallerUpdater({ updates, currentVersion, appRoot, dataD
         if (state.phase === 'installing') return status()
         if (state.phase !== 'ready') {
           const release = await updates.check()
-          if (!release.updateAvailable) return status()
+          if (!release.updateAvailable) {
+            if (state.phase === 'error' || (state.phase === 'ready' && state.version && !newer(state.version, currentVersion))) {
+              artifact = null
+              await persist({ phase: 'idle' })
+              state = { phase: 'idle' }
+            }
+            return status()
+          }
           await service.download()
           await downloadTask
         }

@@ -75,3 +75,4 @@ Before release:
 Weather defaults to Los Angeles. Change `WEATHER_CITY`, `WEATHER_LATITUDE`, and `WEATHER_LONGITUDE` in the installed data `.env` and restart the app for another location. Calendar selections persist beside the Google token.
 
 For rapid LAN design and voice testing, use `npm run dev:lan` and the [Surface voice launcher instructions](../README.md#voice-testing-through-lan). This is a development workflow; installed builds use localhost. Passing source tests does not establish that a newly generated installer or Surface microphone flow has been verified.
+Release builds now fail immediately if either Google OAuth credential is missing. After staging, the build launches the packaged server with empty developer credential overrides and verifies `/api/calendar/status` reports `configured: true`. This validates packaged configuration, not user consent or a completed Google login. Local `.env` values are not automatically available to GitHub Actions.

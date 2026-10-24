@@ -9,6 +9,16 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+if ([string]::IsNullOrWhiteSpace($GoogleClientId) -or [string]::IsNullOrWhiteSpace($GoogleClientSecret)) {
+  throw 'Google Sign-In build credentials are missing. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET before building a release.'
+}
+$GoogleClientId = $GoogleClientId.Trim()
+$GoogleClientSecret = $GoogleClientSecret.Trim()
+if ($GoogleClientId -notmatch '\.apps\.googleusercontent\.com$') {
+  throw 'GOOGLE_CLIENT_ID must be a Google OAuth client ID.'
+}
+
+
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $buildRoot = Join-Path $repoRoot 'build\windows'
 $stageRoot = Join-Path $buildRoot 'stage'
@@ -98,8 +108,15 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'dist') -Destination (Join-Path $app
 Get-ChildItem -Path (Join-Path $repoRoot 'server\*.mjs') | Where-Object { $_.Name -notlike '*.test.mjs' } | Copy-Item -Destination (Join-Path $appStage 'server')
 Copy-Item -LiteralPath (Join-Path $repoRoot '.env.example') -Destination (Join-Path $appStage '.env.example')
 @{ version = $AppVersion; googleClientId = $GoogleClientId; googleClientSecret = $GoogleClientSecret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Encoding utf8
+$packagedConfig = Get-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Raw | ConvertFrom-Json
+if ($packagedConfig.version -ne $AppVersion -or $packagedConfig.googleClientId -cne $GoogleClientId -or $packagedConfig.googleClientSecret -cne $GoogleClientSecret) {
+  throw 'Packaged app version or Google Sign-In credentials failed verification.'
+}
+Write-Host 'Packaged Google Sign-In credentials verified (values hidden).'
+
 Copy-Item -LiteralPath (Join-Path $nodeSource 'node.exe') -Destination (Join-Path $appStage 'runtime\node.exe')
 Copy-Item -LiteralPath (Join-Path $nodeSource 'LICENSE') -Destination (Join-Path $appStage 'runtime\NODE-LICENSE.txt')
+Invoke-Checked (Join-Path $appStage 'runtime\node.exe') @((Join-Path $repoRoot 'packaging\verify-google-config.mjs'), $appStage)
 
 Copy-Item -LiteralPath (Join-Path $pyDist 'kitchen-wake') -Destination (Join-Path $wakeStage 'kitchen-wake') -Recurse
 $modelName = 'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'

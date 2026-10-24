@@ -118,6 +118,7 @@ foreach ($modelFile in @(
   Copy-Item -LiteralPath (Join-Path $modelSource $modelFile) -Destination (Join-Path $modelStage $modelFile)
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging\launcher') -Destination (Join-Path $stageRoot 'launcher') -Recurse
+Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging\assets') -Destination (Join-Path $stageRoot 'assets') -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts\Set-KitchenHubPower.ps1') -Destination (Join-Path $stageRoot 'launcher\Set-KitchenHubPower.ps1')
 
 $isccCandidates = @(

@@ -28,6 +28,8 @@ OutputBaseFilename=KitchenHub-Setup-{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#SourceRoot}\assets\hub.ico
+UninstallDisplayIcon={app}\assets\hub.ico
 CloseApplications=no
 RestartApplications=no
 UninstallDisplayName={#AppName}
@@ -47,11 +49,11 @@ Name: "{localappdata}\KitchenHub\data\logs"; Flags: uninsneveruninstall
 Source: "{#SourceRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; WorkingDir: "{app}"
+Name: "{group}\Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\hub.ico"; IconIndex: 0
 Name: "{group}\Stop Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Stop-KitchenHub.ps1"""; WorkingDir: "{app}"
 Name: "{group}\Configure always-on power"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\launcher\Set-KitchenHubPower.ps1"""; WorkingDir: "{app}\launcher"
-Name: "{autodesktop}\Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; WorkingDir: "{app}"; Tasks: desktopicon
-Name: "{userstartup}\Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; WorkingDir: "{app}"; Tasks: autostart
+Name: "{autodesktop}\Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; WorkingDir: "{app}"; Tasks: desktopicon; IconFilename: "{app}\assets\hub.ico"; IconIndex: 0
+Name: "{userstartup}\Kitchen Hub"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; WorkingDir: "{app}"; Tasks: autostart; IconFilename: "{app}\assets\hub.ico"; IconIndex: 0
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher\Start-KitchenHub.ps1"""; Description: "Launch Kitchen Hub"; Flags: nowait postinstall skipifsilent

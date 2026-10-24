@@ -97,7 +97,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $appStage 'runtime'), (Join
 Copy-Item -LiteralPath (Join-Path $repoRoot 'dist') -Destination (Join-Path $appStage 'dist') -Recurse
 Get-ChildItem -Path (Join-Path $repoRoot 'server\*.mjs') | Where-Object { $_.Name -notlike '*.test.mjs' } | Copy-Item -Destination (Join-Path $appStage 'server')
 Copy-Item -LiteralPath (Join-Path $repoRoot '.env.example') -Destination (Join-Path $appStage '.env.example')
-@{ googleClientId = $GoogleClientId; googleClientSecret = $GoogleClientSecret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Encoding utf8
+@{ version = $AppVersion; googleClientId = $GoogleClientId; googleClientSecret = $GoogleClientSecret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appStage 'app-config.json') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $nodeSource 'node.exe') -Destination (Join-Path $appStage 'runtime\node.exe')
 Copy-Item -LiteralPath (Join-Path $nodeSource 'LICENSE') -Destination (Join-Path $appStage 'runtime\NODE-LICENSE.txt')
 

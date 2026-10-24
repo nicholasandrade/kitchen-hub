@@ -16,6 +16,10 @@ Download an available `KitchenHub-Setup-<version>.exe` from [GitHub Releases](ht
 
 The server data, API key, Google token, logs, wake phrase, and Edge profile live under `%LOCALAPPDATA%\KitchenHub\data`. Upgrades preserve this directory. See [Surface setup](SURFACE_SETUP.md).
 
+## App updates
+
+Hub checks GitHub's latest published release at startup and every 30 seconds while open. **Settings → App updates** lets you save an interval of 5–86,400 seconds for the current browser and check immediately. A banner links to a newer release; download and run its installer to upgrade. Checks do not install automatically. Offline failures retry, and server-requested throttling delays subsequent GitHub requests. The checker follows the public latest-release redirect rather than consuming anonymous REST API requests. Existing installations need this version installed once to gain update checks. This anonymous checker requires publicly accessible releases. A private repository returns no visible release; GitHub authentication in a desktop browser does not authenticate the local Node checker.
+
 ## Run from source
 
 ```powershell
@@ -107,6 +111,7 @@ The GitHub **Build Windows installer** workflow supports manual Actions artifact
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /api/updates` | Current version and latest GitHub release |
 | `GET /api/voice/health` | Voice configuration, models, wake phrase |
 | `PUT /api/settings/openai-key` | Validate and save API key locally |
 | `PUT /api/settings/wake-phrase` | Rebuild and activate wake phrase |

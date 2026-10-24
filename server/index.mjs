@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { createSheetsRecipeStore } from './sheetsRecipes.mjs'
 import { createCalendarStore } from './calendars.mjs'
 import { createWeatherService } from './weather.mjs'
+import { createUpdateService } from './updates.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const dist = join(root, 'dist')
@@ -15,8 +16,10 @@ const envPath = join(dataDirectory, '.env')
 const appConfigPath = join(root, 'app-config.json')
 const readAppConfig = () => {
   if (!existsSync(appConfigPath)) return {}
-  try { return JSON.parse(readFileSync(appConfigPath, 'utf8')) } catch { return {} }
+  try { return JSON.parse(readFileSync(appConfigPath, 'utf8').replace(/^\uFEFF/, '')) } catch { return {} }
 }
+const currentVersion = readAppConfig().version || JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
+const updates = createUpdateService({ currentVersion })
 const readLocalEnv = () => {
   const values = {}
   if (!existsSync(envPath)) return values
@@ -546,6 +549,10 @@ const serveStatic = async (request, response) => {
 
 const server = createServer(async (request, response) => {
   try {
+    if (request.method === 'GET' && request.url === '/api/updates') {
+      response.setHeader('Cache-Control', 'no-store')
+      return sendJson(response, 200, await updates.check())
+    }
     if (request.method === 'GET' && request.url === '/api/voice/health') {
       const { configured, transcriptionModel, commandModel, wakePhrase } = getConfig()
       return sendJson(response, 200, { configured, transcriptionModel, commandModel, wakePhrase })

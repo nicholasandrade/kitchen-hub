@@ -624,3 +624,6 @@ h2 { margin: 0; font: 650 27px/1.1 Inter, 'Segoe UI Variable', 'Segoe UI', sans-
 .calendar-selection label span { display: flex; flex-direction: column; gap: 3px; }
 .calendar-selection small, .calendar-refresh-warning { color: var(--steel); font-size: 12px; }
 .calendar-events .calendar-event-source { font-size: 12px; color: var(--steel); }
+
+.app-update-banner { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; margin-bottom: 16px; border-radius: 12px; color: inherit; background: var(--panel); border: 1px solid var(--teal); }
+.app-update-banner a, .connection-status a { color: var(--teal-dark); font-weight: 750; text-underline-offset: 3px; }

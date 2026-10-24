@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { useAppUpdates } from './appUpdates'
+import { AppUpdateBanner, AppUpdateSettings } from './components/AppUpdateSettings'
 import { localRecipeRepository, sheetsRecipeRepository, type RecipeDraft } from './recipeRepository'
 import { localCookingSessionRepository } from './cookingSessionRepository'
 import { LiveWeatherCard } from './home/LiveWeatherCard'
@@ -279,8 +281,9 @@ function App() {
   const [labDraft, setLabDraft] = useState<RecipeDraft | null>(() => localRecipeRepository.loadDraft())
   const [labPrompt, setLabPrompt] = useState('')
   const [labStatus, setLabStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle')
+  const updates = useAppUpdates()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsPage, setSettingsPage] = useState<'root' | 'appearance' | 'connections'>('root')
+  const [settingsPage, setSettingsPage] = useState<'root' | 'appearance' | 'connections' | 'updates'>('root')
   const [openAIKey, setOpenAIKey] = useState('')
   const [openAIStatus, setOpenAIStatus] = useState<'loading' | 'connected' | 'empty' | 'saving' | 'error'>('loading')
   const [openAIMessage, setOpenAIMessage] = useState('')
@@ -1531,6 +1534,7 @@ function App() {
 
   return (
     <main className="app-shell" data-theme={theme} data-view={activeView}>
+      <AppUpdateBanner updates={updates} />
       <header className="topbar">
         <button className="brand brand-button" type="button" onClick={() => { setLibraryOpen(false); setActiveView('home') }} aria-label="Go to Hub home">
           <div className="hub-wordmark" aria-label="Hub">
@@ -1568,7 +1572,7 @@ function App() {
             <div className="library-heading">
               <div className="settings-heading-copy">
                 {settingsPage !== 'root' ? <button type="button" className="settings-back" onClick={() => setSettingsPage('root')} aria-label="Back to settings">←</button> : null}
-                <div><p className="eyebrow">{settingsPage === 'root' ? 'Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : 'Settings'}</h2></div>
+                <div><p className="eyebrow">{settingsPage === 'root' ? 'Hub' : 'Settings'}</p><h2 id="settings-title">{settingsPage === 'appearance' ? 'Appearance' : settingsPage === 'connections' ? 'Connections' : settingsPage === 'updates' ? 'App updates' : 'Settings'}</h2></div>
               </div>
               <button type="button" className="library-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">×</button>
             </div>
@@ -1579,12 +1583,19 @@ function App() {
                   <span className="settings-row-copy"><strong>Appearance</strong><small>Theme, color, and visual style</small></span>
                   <span className="settings-row-value">{themeOptions.find((option) => option.id === theme)?.name}<b aria-hidden="true">›</b></span>
                 </button>
+                <button type="button" className="settings-row" onClick={() => setSettingsPage('updates')}>
+                  <span className="settings-row-icon" aria-hidden="true">↻</span>
+                  <span className="settings-row-copy"><strong>App updates</strong><small>New releases on GitHub</small></span>
+                  <span className="settings-row-value">Every {updates.intervalSeconds}s<b aria-hidden="true">›</b></span>
+                </button>
                 <button type="button" className="settings-row" onClick={() => setSettingsPage('connections')}>
                   <span className="settings-row-icon" aria-hidden="true">⌁</span>
                   <span className="settings-row-copy"><strong>Connections</strong><small>OpenAI voice, Calendar, and Hub Recipes</small></span>
                   <span className="settings-row-value">{openAIStatus === 'connected' && calendarConnection === 'connected' ? 'All connected' : openAIStatus === 'loading' || calendarConnection === 'loading' ? 'Checking…' : calendarConnection === 'ready' ? 'Google sign-in' : calendarConnection === 'setup' ? 'Calendar unavailable' : 'Setup required'}<b aria-hidden="true">›</b></span>
                 </button>
               </div>
+            ) : settingsPage === 'updates' ? (
+              <AppUpdateSettings updates={updates} />
             ) : settingsPage === 'appearance' ? (
               <div className="theme-grid">
                 {themeOptions.map((option) => (
